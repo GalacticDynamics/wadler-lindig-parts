@@ -1,50 +1,103 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# wadler-lindig-parts Constitution
+
+Every principle below is already true of this code and checkable by a command
+named beside it. Nothing here is an aspiration: the package was extracted from
+`unxt` precisely because these properties already held, and the extraction is
+what makes them worth stating.
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Two dependencies, enforced by a test (NON-NEGOTIABLE)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+The runtime dependencies are `wadler-lindig` and `plum-dispatch`. Nothing else,
+ever. Anything a module needs beyond those two and the standard library is a
+design error in that module, not a reason to add a dependency.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+This is not a convention to remember. `tests/test_engine.py` parses every
+module in `src/wadler_lindig_parts/` and fails on any import outside the
+allowed set. A new dependency cannot be added without deleting that test, which
+a reviewer will see.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. No domain knowledge
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+The package knows about fragments, roles, axes, markups and documents. It does
+not know about units, quantities, arrays, `jax`, or any other domain. A library
+that wants its own vocabulary registers an axis; it does not get a special case
+here.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+The same import test enforces the mechanical half. The judgement half belongs
+to review: a role named for one library's concept, or an axis whose keywords
+only make sense to one caller, is domain knowledge wearing a generic name.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Examples are tests, and owe nothing to a consumer
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Every example in a docstring or a Markdown page is executed by Sybil. An
+example that cannot run is a broken test, not stale prose.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+This has a sharp consequence the package was built around: an example may not
+import a consumer. `unxt` depends on this package, so a doctest importing
+`unxt.Quantity` would be circular. `examples.py` exists for this reason and
+provides the types the documentation demonstrates on — `Version`, `Term` and
+`Point` — each chosen for a property the others lack.
+
+### IV. One registry, shared between libraries; collisions are loud
+
+Axis keywords live in one flat namespace shared by every library that registers
+into it. Three rules follow, and they are contract rather than implementation
+detail now that the registrants are separate distributions:
+
+- The first registration of a word wins.
+- A second claim on the same word raises, and the error names both claimants.
+- `axis=word` always resolves explicitly, so two libraries wanting one word is
+  an inconvenience rather than a defeat.
+
+`register_axis` enforces the first two. `tests/test_engine.py` pins them.
+
+### V. A rendering claim is pinned by a test that was watched fail
+
+Rendering is full of behaviour that looks obvious and is not: `mul` leaves an
+object's own separator alone, a markup wrapper must cost zero layout columns, a
+LaTeX control sequence is billed at its visible width. Every such claim in this
+package is asserted by a test, and the test was observed failing before the
+code existed.
+
+Measured values, not plausible ones. A docstring example showing output nobody
+ran is the failure mode this principle exists to prevent.
+
+## Additional Constraints
+
+- **Python `>=3.10`.** Both dependencies allow it. The package is deliberately
+  looser than `unxt`, which requires `>=3.12`: a general-purpose renderer
+  should not inherit a consumer's floor.
+- **Versioning.** `0.x` while the axis and markup APIs are still moving. `1.0`
+  when the type-scoped override and markup-composer work has settled.
+- **Public surface.** `engine.__all__` + `generic.__all__`, plus `examples`.
+  There is no private-but-documented tier: a name downstream needs is public,
+  and a name that is public is tested.
+- **Docs.** Markdown built by `zensical`, configured in `zensical.toml`.
+  Note that zensical silently ignores MkDocs plugins — a plugin named in the
+  config neither works nor complains — so a plugin's effect is verified in the
+  built site, never inferred from its presence.
+
+## Development Workflow
+
+- Test first. Write the failing test, run it, watch it fail, then implement.
+- `uv run pytest` must pass, including the doctests in `src/` and `docs/`.
+- `uv run pre-commit run --all-files` is the lint gate. `ruff check` alone is
+  not: the formatter and the hooks catch what it does not.
+- CI runs the suite on 3.10 through 3.14. The 3.10 job is what makes the floor
+  a fact rather than a claim about syntax.
+- Changes arrive by pull request on a branch, never by committing to `main`.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution describes what is already enforced. When a principle and the
+code disagree, that is a bug in one of them — say which, in the pull request,
+rather than quietly changing both.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Amending a principle requires saying what evidence changed. Principle I in
+particular cannot be amended by adding a dependency; it is amended by arguing
+that the package's purpose has changed, and the reviewer who agrees deletes the
+test knowingly.
+
+**Version**: 1.0.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
