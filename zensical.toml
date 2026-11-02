@@ -1,0 +1,74 @@
+[project]
+site_author      = "Nathaniel Starkman"
+site_description = "A parts layer over wadler-lindig: one engine behind repr, str, format and markup."
+site_name        = "wadler-lindig-parts"
+site_url         = "https://galacticdynamics.github.io/wadler-lindig-parts"
+
+repo_name = "GalacticDynamics/wadler-lindig-parts"
+repo_url  = "https://github.com/GalacticDynamics/wadler-lindig-parts"
+
+nav = [
+  "index.md",
+  { "How-to" = [
+    "how-to/make-a-type-formattable.md",
+  ] },
+  { "Explanation" = [
+    "explanation/why-formatting-is-one-engine.md",
+  ] },
+  { "Reference" = [
+    "api.md",
+  ] },
+]
+
+[project.theme]
+features = [
+  "navigation.sections", # sections appear in the left-hand navigation
+  "toc.integrate",       # table of contents on the left, not separately on the right
+  "header.autohide",     # header disappears as you scroll
+]
+
+[project.theme.icon]
+logo = "material/format-text"
+repo = "fontawesome/brands/github"
+
+# Light mode / dark mode. Default to light deliberately: it is more obvious
+# about offering a toggle than a `media` query that silently matches.
+[[project.theme.palette]]
+accent      = "indigo"
+primary     = "white"
+scheme      = "default"
+toggle.icon = "material/weather-night"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+accent      = "indigo"
+primary     = "black"
+scheme      = "slate"
+toggle.icon = "material/weather-sunny"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition                      = {}
+pymdownx.details                = {}
+pymdownx.snippets.base_path     = "docs"
+pymdownx.superfences            = {}
+pymdownx.tabbed.alternate_style = true
+toc.permalink                   = "¤"
+toc.toc_depth                   = 4
+
+# Lets a search for `register_axis` match `wadler_lindig_parts.register_axis`.
+[project.plugins.search]
+separator = '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+
+[project.plugins.mkdocstrings.handlers.python.options]
+force_inspection           = true
+heading_level              = 4
+inherited_members          = true
+members_order              = "source"
+show_bases                 = false
+show_if_no_docstring       = true
+show_root_heading          = true
+show_signature_annotations = true
+show_source                = false
+show_symbol_type_heading   = true
+show_symbol_type_toc       = true

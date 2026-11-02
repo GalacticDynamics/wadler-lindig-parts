@@ -65,12 +65,13 @@ __all__ = (
 
 import html as _html
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, ClassVar, Final, NamedTuple
 
 import wadler_lindig as wl
 from plum import Dispatcher
+
 
 #: A dispatcher private to this module.
 #:
@@ -621,7 +622,7 @@ class Axis(NamedTuple):
     name: str
     keywords: Mapping[str, Any]
     default: Any
-    layouts: Mapping[str, Callable[[Any], Mapping[str, Any]]]
+    layouts: Mapping[str, Callable[[Any], Mapping[str, Any]] | None]
     free_text: tuple[str, ...] = ()
 
 
@@ -652,7 +653,9 @@ def _free_text(spec: "Spec", /) -> str | None:
     keyword this axis itself claims", which the callers treat alike.
     """
     axis = _free_text_axis()
-    text = None if axis is None else spec[axis.name]
+    if axis is None:
+        return None
+    text = spec[axis.name]
     return None if text is None or text in axis.keywords.values() else text
 
 
@@ -746,7 +749,12 @@ class Spec(Mapping[str, Any]):
 
     __slots__ = ("_d",)
 
-    def __init__(self, mapping: Mapping[str, Any] = (), /, **kw: Any) -> None:
+    def __init__(
+        self,
+        mapping: Mapping[str, Any] | Iterable[tuple[str, Any]] = (),
+        /,
+        **kw: Any,
+    ) -> None:
         self._d: Mapping[str, Any] = MappingProxyType({**dict(mapping), **kw})
 
     @classmethod
@@ -762,8 +770,8 @@ class Spec(Mapping[str, Any]):
         --------
         >>> from wadler_lindig_parts import Spec, parse_spec
 
-        >>> Spec.of(layout="call")["unit"]
-        'symbol'
+        >>> Spec.of(layout="call")["markup"]
+        'text'
 
         >>> Spec.of() == parse_spec("product")
         True
@@ -910,10 +918,15 @@ def parse_spec(spec: str, /, *, obj: Any = None) -> Spec:
     >>> parse_spec("mul-->10.2f")["value"]
     '->10.2f'
 
-    An alias expands before parsing:
+    An alias expands before parsing. This package ships none -- every alias in
+    existence is registered by a consumer -- so one has to be registered to
+    show it:
 
-    >>> parse_spec("compact") == parse_spec("call-abbrev")
+    >>> from wadler_lindig_parts import register_alias, unregister_alias
+    >>> register_alias("loud", "html-mul")
+    >>> parse_spec("loud") == parse_spec("html-mul")
     True
+    >>> unregister_alias("loud")
 
     """
     tokens = spec.split("-")

@@ -1,0 +1,163 @@
+name: Run tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * 4"  # Every Thursday at midnight UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  # Each push to main gets its own group, so merges never cancel each other
+  # and main keeps a complete CI record. All other events keep the per-ref
+  # group and still supersede older runs.
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: 3
+  # 3.10 is in here deliberately. The constitution's floor is >=3.10, and this
+  # job is what makes that a fact rather than a claim about syntax.
+  #
+  # The last entry is not just another matrix row: the `setup` job derives
+  # `newest-python` from it, so the `newest-supported` job runs there too.
+  # Adding a version therefore claims two things -- that the suite passes on
+  # that interpreter, and that it passes there with every dependency at its
+  # newest release. Both were observed before 3.15 was added here.
+  PYTHON_VERSIONS: '["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]'
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ env.PYTHON_VERSIONS }}
+      oldest-python: ${{ steps.versions.outputs.oldest }}
+      newest-python: ${{ steps.versions.outputs.newest }}
+    steps:
+      - id: versions
+        run: |
+          versions='${{ env.PYTHON_VERSIONS }}'
+          oldest=$(echo "$versions" | jq -r '.[0]')
+          newest=$(echo "$versions" | jq -r '.[-1]')
+          echo "oldest=$oldest" >> $GITHUB_OUTPUT
+          echo "newest=$newest" >> $GITHUB_OUTPUT
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Install
+        run: uv sync --no-default-groups --group lint --locked
+
+      # The whole hook set, not `ruff check` alone: the formatter and the other
+      # hooks catch what the linter does not.
+      - name: Checks with pre-commit
+        # Not a real commit -- no-commit-to-branch would always fail here.
+        run: uv run --frozen pre-commit run --all-files
+        env:
+          SKIP: no-commit-to-branch
+
+  tests:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: [lint, setup]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(needs.setup.outputs.python-versions) }}
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # `--no-default-groups --group tests` installs neither the docs group nor
+      # the lint group. That keeps the 3.10 job installable (mkdocstrings needs
+      # >=3.11) and, more importantly, keeps every job free of any consumer of
+      # this package -- which is the condition the suite asserts.
+      - name: Install
+        run: uv sync --no-default-groups --group tests --locked
+
+      - name: Test with pytest
+        run: uv run --frozen pytest
+
+      - name: Confirm no consumer is installed
+        # If this ever succeeds, the suite above was passing with a consumer's
+        # axes already registered -- the exact condition the extraction existed
+        # to escape, and the one thing that would make a green run meaningless.
+        run: |
+          if uv run --frozen python -c "import unxt" 2>/dev/null; then
+            echo "::error::a consumer of this package is installed; the suite's standalone claim is void"
+            exit 1
+          fi
+          echo "no consumer installed, as required"
+
+  oldest-supported:
+    name: Oldest supported deps
+    runs-on: ubuntu-latest
+    needs: [lint, setup]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ needs.setup.outputs.oldest-python }}
+
+      # Pins wadler-lindig to 0.1.8 and plum-dispatch to 2.7.0 exactly, which
+      # is what makes those floors claims about something rather than decoration.
+      - name: Install the project
+        run: uv sync --no-default-groups --group tests --resolution lowest-direct
+
+      - name: Test package
+        run: uv run --frozen pytest
+
+  newest-supported:
+    name: Newest supported deps
+    runs-on: ubuntu-latest
+    needs: [lint, setup]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ needs.setup.outputs.newest-python }}
+
+      - name: Install the project
+        run: uv sync --no-default-groups --group tests --upgrade
+
+      - name: Test package
+        run: uv run --no-sync pytest
+
+  ci-pass:
+    name: CI Pass
+    runs-on: ubuntu-latest
+    needs: [lint, setup, tests, oldest-supported, newest-supported]
+    if: always()
+    steps:
+      - name: All required jobs passed
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}

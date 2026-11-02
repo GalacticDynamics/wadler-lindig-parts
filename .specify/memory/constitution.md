@@ -46,12 +46,27 @@ Axis keywords live in one flat namespace shared by every library that registers
 into it. Three rules follow, and they are contract rather than implementation
 detail now that the registrants are separate distributions:
 
-- The first registration of a word wins.
-- A second claim on the same word raises, and the error names both claimants.
+- Two axes may claim one word. Both registrations succeed, and neither wins:
+  `_KEYWORDS` holds a list of claimants.
+- Using the word *bare* in a spec raises, and the error names both claimants
+  and both qualified forms.
 - `axis=word` always resolves explicitly, so two libraries wanting one word is
   an inconvenience rather than a defeat.
 
-`register_axis` enforces the first two. `tests/test_engine.py` pins them.
+Keyword resolution enforces the first two, at parse time. `register_axis`
+refuses a duplicate axis *name*, a second claim on free text, and a keyword
+already taken by an *alias* — but deliberately not a keyword another axis
+claims. `tests/test_engine.py` pins all three rules.
+
+**Amended 2026-11-02.** The first two bullets previously read "The first
+registration of a word wins" and "A second claim on the same word raises, and
+the error names both claimants", attributed to `register_axis`. The evidence
+that changed: `register_axis` was read, and it appends to a claimant list
+rather than refusing — the refusal is in keyword resolution, and no claimant
+wins, because the bare word becomes unusable while both qualified forms keep
+working. The third bullet is what decided which side was the bug: refusing the
+second registration would leave nothing for `axis=word` to resolve to, turning
+a shared word into a defeat. The code was right and the principle was wrong.
 
 ### V. A rendering claim is pinned by a test that was watched fail
 
@@ -85,8 +100,18 @@ ran is the failure mode this principle exists to prevent.
 - `uv run pytest` must pass, including the doctests in `src/` and `docs/`.
 - `uv run pre-commit run --all-files` is the lint gate. `ruff check` alone is
   not: the formatter and the hooks catch what it does not.
-- CI runs the suite on 3.10 through 3.14. The 3.10 job is what makes the floor
-  a fact rather than a claim about syntax.
+- CI runs the suite on 3.10 through 3.15. The 3.10 job is what makes the floor
+  a fact rather than a claim about syntax; the newest job is also where the
+  `newest-supported` resolution runs, so the top of the range claims both that
+  the suite passes there and that it passes with every dependency upgraded.
+
+  **Amended 2026-11-02**, from `3.10 through 3.14`. The evidence is that 3.15.0
+  final had been released and the suite was run on it: 287 passed on 3.15.0
+  under the locked resolution, and 287 passed again after
+  `uv sync --group tests --upgrade` (plum-dispatch 2.10.1, sybil 10.1.0,
+  wadler-lindig 0.1.8), with `import unxt` still failing. The range is a record
+  of where the suite is observed to pass, so an interpreter is added once it
+  has been run, not when it is announced.
 - Changes arrive by pull request on a branch, never by committing to `main`.
 
 ## Governance
@@ -100,4 +125,4 @@ particular cannot be amended by adding a dependency; it is amended by arguing
 that the package's purpose has changed, and the reviewer who agrees deletes the
 test knowingly.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
+**Version**: 1.2.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
