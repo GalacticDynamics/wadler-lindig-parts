@@ -14,20 +14,18 @@ import wadler_lindig as wl
 from wadler_lindig_parts import (
     ALIASES,
     AXES,
-    MARKUPS,
-    REQUIRED_MARKUP_KEYS,
     Axis,
-    PGroup,
-    PPart,
-    Spec,
     doc_part,
     doc_to_str,
     engine as engine_module,
     examples,
     inert_axes,
+    MARKUPS,
     parse_spec,
     parts_to_doc,
     parts_to_markup,
+    PGroup,
+    PPart,
     pparts,
     pspec,
     pvalue,
@@ -35,13 +33,17 @@ from wadler_lindig_parts import (
     register_axis,
     register_markup,
     render,
+    ReprMixin,
+    REQUIRED_MARKUP_KEYS,
+    Spec,
     unregister_alias,
     unregister_axis,
     unregister_markup,
     unwrap_math,
 )
 from wadler_lindig_parts.engine import _ALIASES, _AXES, _KEYWORDS, _MARKUPS
-from wadler_lindig_parts.generic import _MARKUP_WORDS, _check_markup_row
+from wadler_lindig_parts.generic import _check_markup_row, _MARKUP_WORDS
+
 
 # ============================================================================
 # The grammar's own invariants
@@ -250,7 +252,16 @@ def test_unwrap_math_only_strips_real_delimiters(text: str, expected: str) -> No
     assert unwrap_math(text) == expected
 
 
-_PACKAGE_SIDE = ("engine", "generic", "examples")
+#: Every module in the package, discovered rather than listed. A hardcoded
+#: tuple is a list that goes stale: `__init__.py` was added after this test was
+#: written and was not in it, so the one module naming every public name was
+#: the one module whose imports nobody checked.
+_PACKAGE_DIR = pathlib.Path(engine_module.__file__).parent
+_PACKAGE_MODULES = tuple(sorted(_PACKAGE_DIR.glob("*.py")))
+#: Module stems a package-side module may reach with a single-dot relative
+#: import. `__init__` is excluded: a submodule importing the package root
+#: would be a cycle.
+_PACKAGE_SIDE = tuple(sorted(p.stem for p in _PACKAGE_MODULES if p.stem != "__init__"))
 
 
 def _import_offenders(source: str) -> list[str]:
@@ -309,81 +320,43 @@ def test_the_example_type_renders_in_every_route() -> None:
     assert f"{v:latex}" == "$2.1$"
 
 
-def test_the_engine_alone_registers_six_axes_and_no_aliases(tmp_path) -> None:
-    """Assembled as a package of its own, the engine's registry is its own.
+def test_the_engine_alone_registers_six_axes_and_no_aliases() -> None:
+    """This package's registry holds its own six axes and nothing else.
 
-    `engine` and `generic` are copied into a bare package and imported in a
-    subprocess: importing them from `wadler_lindig_parts` would run that package's
-    ``__init__``, which imports `axes` eagerly, so the registry would already
-    hold unxt's two axes and three aliases.
+    Zero aliases is the interesting number: the engine ships no shorthand at
+    all. Every alias in existence is registered by a consumer, which is why
+    this reads 0 here and 3 inside `unxt`.
 
-    This is the property the extracted package's suite will depend on, and
-    proving it here means the extraction cannot be surprised by it.
+    Read straight off the live registry. In-tree in `unxt` this had to copy
+    the modules into a bare package and import them in a subprocess, because
+    `unxt.__init__` registers its axes eagerly and the registry was already
+    polluted by import time. There is no consumer here to hide from, so the
+    subprocess was pure cost -- and a test that reads the thing it is asserting
+    about cannot drift from it.
     """
-    import json  # noqa: PLC0415
-    import subprocess  # noqa: PLC0415
-    import sys  # noqa: PLC0415
-
-    pkg = tmp_path / "wlp"
-    pkg.mkdir()
-    (pkg / "__init__.py").touch()
-    src = pathlib.Path(engine_module.__file__).parent
-    for mod in _PACKAGE_SIDE:
-        (pkg / f"{mod}.py").write_text(
-            (src / f"{mod}.py").read_text(encoding="utf-8"), encoding="utf-8"
-        )
-
-    code = (
-        "import json, wlp.engine as e, wlp.generic;"
-        "print(json.dumps([sorted(e.AXES), len(e.ALIASES), sorted(e.MARKUPS)]))"
-    )
-    out = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=tmp_path,
-    ).stdout
-    axes, n_aliases, markups = json.loads(out)
-    assert axes == ["indent", "layout", "markup", "sep", "value", "width"]
-    assert n_aliases == 0
-    assert markups == ["html", "latex", "text"]
+    assert sorted(AXES) == ["indent", "layout", "markup", "sep", "value", "width"]
+    assert len(ALIASES) == 0
+    assert sorted(MARKUPS) == ["html", "latex", "text"]
 
 
-def test_the_package_side_exposes_no_privates_across_the_seam() -> None:
-    """Unxt's layer must reach the engine through public names only.
+def test_the_package_imports_only_wl_plum_and_stdlib() -> None:
+    """Constitution principle I, as a command rather than a convention.
 
-    After extraction these are separate distributions, where an underscore
-    name can change in a patch release without warning.
+    Every module in the package may import `wadler_lindig`, `plum`, the
+    standard library, and its siblings. Nothing else, ever -- a third runtime
+    dependency cannot arrive without deleting this test, which a reviewer
+    sees.
+
+    The modules are globbed, not listed, so this covers a module added later.
+    It is also the inverted form of the discipline: the test it replaced asked
+    "does anything import `unxt`?", whose answer is permanently no and stays
+    no while somebody adds `numpy`. This one asks "does anything import
+    something it may not?", which is the question.
     """
-    import ast  # noqa: PLC0415
-
-    source = (
-        pathlib.Path(engine_module.__file__)
-        .with_name("axes.py")
-        .read_text(encoding="utf-8")
-    )
-    imported = [
-        alias.name
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.ImportFrom)
-        and node.level == 1
-        and node.module in _PACKAGE_SIDE
-        for alias in node.names
-    ]
-    assert imported, "the test is vacuous if axes.py imports nothing from the seam"
-    assert [n for n in imported if n.startswith("_")] == []
-
-
-def test_package_side_imports_only_wl_plum_and_stdlib() -> None:
-    """engine.py and generic.py are the future `pparts` package.
-
-    They may import `wadler_lindig`, `plum`, the standard library, and each
-    other (relative imports). Anything domain-specific belongs in `axes.py`.
-    """
-    for mod in _PACKAGE_SIDE:
-        path = pathlib.Path(engine_module.__file__).with_name(f"{mod}.py")
-        assert _import_offenders(path.read_text(encoding="utf-8")) == [], mod
+    assert _PACKAGE_MODULES, "glob found no modules -- the test would be vacuous"
+    for path in _PACKAGE_MODULES:
+        offenders = _import_offenders(path.read_text(encoding="utf-8"))
+        assert offenders == [], f"{path.name}: {offenders}"
 
 
 def test_a_downstream_package_can_register_its_own_axis() -> None:
@@ -394,6 +367,10 @@ def test_a_downstream_package_can_register_its_own_axis() -> None:
     unexpected keyword argument``. `coordinax` already carries exactly such an
     axis (``vector_form``) as an ad-hoc ``__pdoc__`` knob with no way to reach
     it from a format spec.
+
+    The built-in keyword it is interleaved with is ``type``, from the ``value``
+    axis -- one of the few that apply to the ``call`` layout. In-tree this used
+    unxt's ``abbrev``, which does not exist here.
     """
     axis = Axis(
         name="demo_form",
@@ -408,7 +385,7 @@ def test_a_downstream_package_can_register_its_own_axis() -> None:
         assert parse_spec("call")["demo_form"] is False  # default filled in
         assert parse_spec("demoalias") == parse_spec("call-demoform")
         # Order-independent alongside a built-in axis, like any other keyword.
-        assert parse_spec("call-demoform-abbrev") == parse_spec("abbrev-demoform-call")
+        assert parse_spec("call-demoform-type") == parse_spec("type-demoform-call")
         # Scoped to its layouts, with the same typed error a built-in gets.
         with pytest.raises(ValueError, match="'demo_form' does not apply"):
             parse_spec("product-demoform")
@@ -417,24 +394,46 @@ def test_a_downstream_package_can_register_its_own_axis() -> None:
         unregister_alias("demoalias")
 
 
-@pytest.mark.parametrize("word", ["html", "compact"])
+@pytest.mark.parametrize("word", ["html", "mul"])
 def test_an_alias_never_collides_silently(word: str) -> None:
     """An alias has no qualified form, so a clash with one stays fatal.
 
     A keyword can be disambiguated as ``axis=word``; an alias is a whole spec
     and cannot, so both directions around an alias must still raise.
+
+    The words are built-in keywords of this package (``html`` from ``markup``,
+    ``mul`` from ``sep``). In-tree the second was unxt's ``compact`` alias,
+    which does not exist here -- so the registration *succeeded*, the test
+    failed with "DID NOT RAISE", and because it failed it never cleaned up.
+    That left ``compact`` in `ALIASES` for the rest of the session, which is
+    what made the next test below pass for entirely the wrong reason.
     """
     with pytest.raises(ValueError, match="already"):
-        register_alias(word, "call-abbrev")
+        register_alias(word, "call-type")
+    assert word not in ALIASES
 
 
 def test_an_alias_name_may_not_be_claimed_as_a_keyword() -> None:
-    with pytest.raises(ValueError, match="already an alias"):
-        register_axis(
-            Axis(
-                name="clash", keywords={"compact": 1}, default=0, layouts={"call": dict}
+    """The other direction: a keyword may not take a name an alias holds.
+
+    The alias has to be registered first. In-tree this leaned on unxt's
+    ``compact`` already being one; here `ALIASES` starts empty, so a test
+    asserting a clash has to create the thing it clashes with.
+    """
+    register_alias("tmp_alias_name", "call-type")
+    try:
+        with pytest.raises(ValueError, match="already an alias"):
+            register_axis(
+                Axis(
+                    name="clash",
+                    keywords={"tmp_alias_name": 1},
+                    default=0,
+                    layouts={"call": dict},
+                )
             )
-        )
+    finally:
+        unregister_alias("tmp_alias_name")
+    assert "clash" not in AXES
 
 
 def test_only_one_axis_may_claim_free_text() -> None:
@@ -484,22 +483,38 @@ def test_a_probe_that_raises_is_skipped_not_propagated() -> None:
     A type may legitimately reject the *default* of an axis while accepting
     the value asked for. The probe swallows that and reports nothing for the
     axis, rather than turning a working format call into an exception.
+
+    The axis is registered here rather than borrowed. In-tree this used
+    unxt's ``unit_style`` axis and its ``name`` keyword; neither exists in
+    this package, and a test for a *mechanism* should not need a consumer's
+    vocabulary to express itself (principle II).
     """
 
     class Picky:
         pass
 
     @pparts.dispatch
-    def _(obj: Picky, /, *, markup: str = "text", unit_style: str = "symbol", **kw):
-        if unit_style == "symbol":  # the default -- what the probe re-renders with
-            msg = "no symbol form"
+    def _(obj: Picky, /, *, markup: str = "text", picky_style: str = "terse", **kw):
+        if picky_style == "terse":  # the default -- what the probe re-renders with
+            msg = "no terse form"
             raise RuntimeError(msg)
-        return (PPart("unit", unit_style),)
+        return (PPart("label", picky_style),)
 
-    obj = Picky()
-    spec = parse_spec("name")
-    assert pspec(obj, "name") == "name"
-    assert inert_axes(obj, spec, render(obj, spec)) == []
+    register_axis(
+        Axis(
+            name="picky_style",
+            keywords={"verbose": "verbose"},
+            default="terse",
+            layouts={"product": lambda v: {"picky_style": v}},
+        )
+    )
+    try:
+        obj = Picky()
+        spec = parse_spec("verbose")
+        assert pspec(obj, "verbose") == "verbose"
+        assert inert_axes(obj, spec, render(obj, spec)) == []
+    finally:
+        unregister_axis("picky_style")
 
 
 def test_a_render_error_without_free_text_keeps_its_own_exception() -> None:
@@ -676,11 +691,25 @@ def test_a_failed_replace_leaves_every_registry_untouched():
 
 
 def test_a_keyword_clash_on_replace_leaves_the_old_axis():
+    """A rejected replacement must not take the axis it meant to replace.
+
+    The alias is registered here. In-tree this clashed against unxt's
+    ``compact``; with no alias of that name in this package the replacement
+    *succeeded*, swapping the real ``sep`` axis for one whose only keyword was
+    ``compact`` -- and since the test failed on DID NOT RAISE, it never
+    restored it. Three later tests then failed on a ``sep`` axis that had lost
+    ``mul`` and ``bare``, two of them only in a full run.
+    """
+    register_alias("tmp_clash_alias", "call-type")
     before = _snapshot()
-    clash = AXES["sep"]._replace(keywords={"compact": 1})  # an alias
-    with pytest.raises(ValueError, match="already an alias"):
-        register_axis(clash, replace=True)
-    assert _snapshot() == before
+    clash = AXES["sep"]._replace(keywords={"tmp_clash_alias": 1})
+    try:
+        with pytest.raises(ValueError, match="already an alias"):
+            register_axis(clash, replace=True)
+        assert _snapshot() == before
+    finally:
+        unregister_alias("tmp_clash_alias")
+    assert parse_spec("mul")["sep"] == "mul"
 
 
 def test_a_successful_replace_keeps_keywords_consistent():
@@ -771,34 +800,138 @@ def test_default_pvalue_non_compact_goes_through_wl_pdoc(short_arrays):
     )
 
 
-def test_this_suite_reaches_only_for_the_package_side() -> None:
-    """These tests travel to `wadler-lindig-parts`, so they may not need unxt.
+# ============================================================================
+# The contracts that crossed the distribution boundary
+#
+# Three behaviours that were implementation detail while these modules lived
+# inside `unxt`, and are contract now that the registrants are separate
+# distributions. Each was written and watched failing before being relied on
+# (constitution principle V); the edit that makes each one fail is named in
+# its docstring.
 
-    In-tree they import the engine from `wadler_lindig_parts`, which becomes
-    `wadler_lindig_parts` at the move. Anything else from `unxt` -- the
-    top-level package, the `_pparts` shim, or `axes` -- would not survive it.
 
-    This is the check that a "does the body mention `u.Q`" heuristic missed:
-    three tests reached for `u.StaticQuantity`, the shim, and `axes` through
-    import lines, and were only caught when the files were actually copied.
+def _tmp_axis(name: str, word: str) -> Axis:
+    """An axis claiming one keyword, for collision tests."""
+    return Axis(
+        name=name,
+        keywords={word: f"{name}:{word}"},
+        default=None,
+        layouts={"product": lambda v: {name: v}},
+    )
+
+
+def test_two_axes_may_claim_one_keyword_and_the_bare_word_then_raises() -> None:
+    """Constitution principle IV, as the code actually implements it.
+
+    Keywords live in one flat namespace shared by every registering
+    distribution, so two libraries may want one word. Both registrations
+    *succeed* -- `_KEYWORDS` holds a list of claimants, not a winner. The
+    refusal lands when a spec uses the word bare, and names both claimants
+    and both qualified forms.
+
+    `register_axis` deliberately does not refuse the second claim. Refusing it
+    would leave nothing for ``axis=word`` to resolve to, which is principle
+    IV's third bullet and the one substantive commitment of the three: a
+    shared word is an inconvenience, not a defeat.
+
+    Watched failing by changing `register_axis`'s
+    ``_KEYWORDS.setdefault(word, []).append(axis.name)`` to
+    ``_KEYWORDS[word] = [axis.name]`` -- first-claimant-loses rather than
+    both-recorded. The bare word then resolves silently to the second axis and
+    this test fails on the `pytest.raises`.
     """
-    import ast  # noqa: PLC0415
+    register_axis(_tmp_axis("first_claimant", "shared"))
+    register_axis(_tmp_axis("second_claimant", "shared"))
+    try:
+        # Both registrations stood. Neither "won".
+        assert sorted(_KEYWORDS["shared"]) == ["first_claimant", "second_claimant"]
 
-    allowed = {
-        "wadler_lindig_parts",
-        "wadler_lindig_parts.engine",
-        "wadler_lindig_parts.generic",
-        "wadler_lindig_parts.examples",
-    }
-    source = pathlib.Path(__file__).read_text(encoding="utf-8")
-    offenders = []
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Import):
-            offenders += [a.name for a in node.names if a.name.split(".")[0] == "unxt"]
-        elif (
-            isinstance(node, ast.ImportFrom)
-            and (node.module or "").startswith("unxt")
-            and node.module not in allowed
-        ):
-            offenders.append(node.module)
-    assert offenders == []
+        # The bare word is refused, naming both claimants and both escapes.
+        with pytest.raises(ValueError, match="ambiguous keyword") as excinfo:
+            parse_spec("shared")
+        msg = str(excinfo.value)
+        assert "'first_claimant'" in msg
+        assert "'second_claimant'" in msg
+        assert "first_claimant=shared" in msg
+        assert "second_claimant=shared" in msg
+
+        # And each qualified form still resolves, to its own axis.
+        assert parse_spec("first_claimant=shared")["first_claimant"] == (
+            "first_claimant:shared"
+        )
+        assert parse_spec("second_claimant=shared")["second_claimant"] == (
+            "second_claimant:shared"
+        )
+    finally:
+        unregister_axis("second_claimant")
+        unregister_axis("first_claimant")
+    assert "shared" not in _KEYWORDS
+
+
+@pytest.mark.parametrize("missing", REQUIRED_MARKUP_KEYS)
+def test_a_markup_row_missing_a_required_key_is_refused_at_registration(
+    missing: str,
+) -> None:
+    """A row the renderers could not use is refused when it is registered.
+
+    "At registration, not at render" is the substance: a row that passed
+    registration and failed at render would fail in whichever consumer
+    happened to format an object first, at a call site with nothing to do with
+    the registration -- which may be in another distribution entirely. So the
+    second half of this test, that no registry holds a partial entry, is the
+    half that carries the claim.
+
+    The existing `test_register_markup_rejects_a_malformed_template`
+    parametrises six bad rows; every one supplies all four keys and corrupts a
+    *value*, so the missing-key branch was unexercised.
+
+    Watched failing by commenting out the ``if missing := ...`` block at the
+    top of `generic._check_markup_row`: registration then succeeds for a row
+    with no ``vsep``, and the `KeyError` surfaces at render instead.
+    """
+    row = {k: v for k, v in _GOOD_ROW.items() if k != missing}
+    with pytest.raises(ValueError, match="missing required keys") as excinfo:
+        register_markup("incomplete_markup", row)
+    assert missing in str(excinfo.value)
+    # Nothing partial left behind, in either registry it would touch.
+    assert "incomplete_markup" not in MARKUPS
+    assert "incomplete_markup" not in _KEYWORDS
+    assert "incomplete_markup" not in _MARKUP_WORDS
+
+
+def test_a_repr_spec_naming_an_unregistered_axis_fails_at_class_creation() -> None:
+    """`ReprMixin` resolves ``__repr_spec__`` when the class is created.
+
+    So a consumer must register its axes *before* defining the classes whose
+    repr specs name them. Inside one package that was a statement about the
+    order of lines in an ``__init__``; between two installed distributions it
+    is load order between them, and the error arrives at a ``class`` statement
+    that looks unrelated to the registration. That is why the README says so
+    explicitly rather than leaving it to the message.
+
+    `test_bad_repr_spec_fails_at_class_creation` in ``test_downstream.py``
+    covers a spec that is invalid in any registry. This covers the
+    registration-*order* case: the same spec, valid once the axis exists.
+
+    Watched failing by moving the `parse_spec` call out of
+    `ReprMixin.__init_subclass__` into `__repr__`: the class then defines
+    cleanly and the error moves to first print.
+    """
+    spec = "lateform"
+
+    # Before registration: the class statement itself is the failure.
+    with pytest.raises(ValueError, match="invalid format spec"):
+
+        class TooEarly(ReprMixin):
+            __repr_spec__ = spec
+
+    register_axis(_tmp_axis("late_axis", spec))
+    try:
+        # After registration: the identical spec is accepted, at class
+        # creation, and resolved once rather than on every print.
+        class LateEnough(ReprMixin):
+            __repr_spec__ = spec
+
+        assert LateEnough._repr_spec_parsed["late_axis"] == f"late_axis:{spec}"
+    finally:
+        unregister_axis("late_axis")

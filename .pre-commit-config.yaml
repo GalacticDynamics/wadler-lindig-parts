@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v6.0.0"
+    hooks:
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+        always_run: true
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.14
+    hooks:
+      - id: ruff-check  # linter
+        types_or: [python, pyi]
+        args: [--fix]
+      - id: ruff-format  # formatter
+        types_or: [python, pyi]
+
+  # The dependency list is this package's own, not quax's: naming `jax`,
+  # `equinox` or `jaxtyping` here would install libraries principle I forbids
+  # the package from ever importing.
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.410
+    hooks:
+      - id: pyright
+        additional_dependencies: ["plum-dispatch", "pytest", "sybil", "wadler-lindig"]
+        exclude: "^tests/.*"
+
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format

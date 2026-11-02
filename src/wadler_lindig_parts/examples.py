@@ -20,8 +20,9 @@ Like `engine` and `generic`, this imports only the standard library,
 __all__ = ("Point", "Term", "Version")
 
 import dataclasses
+from typing import Any
 
-from .engine import PPart, ReprMixin, doc_part, pparts
+from .engine import doc_part, PPart, pparts, ReprMixin
 from .generic import pvalue
 
 
@@ -101,9 +102,7 @@ class Term(ReprMixin):
 
 
 @pparts.dispatch  # type: ignore[misc]
-def pparts_term(
-    obj: Term, /, *, markup: str = "text", **kw: object
-) -> tuple[PPart, ...]:
+def pparts_term(obj: Term, /, *, markup: str = "text", **kw: Any) -> tuple[PPart, ...]:
     """Decompose a term into coefficient, operator and symbol."""
     return (
         doc_part("coeff", pvalue(obj.coeff, markup=markup, **kw)),

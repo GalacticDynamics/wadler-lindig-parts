@@ -20,14 +20,15 @@ from .engine import (
     _KEYWORDS,
     _MARKUPS,
     ALIASES,
-    FLAT,
-    REQUIRED_MARKUP_KEYS,
     Axis,
     dispatch,
     doc_to_str,
+    FLAT,
     markup_table,
     register_axis,
+    REQUIRED_MARKUP_KEYS,
 )
+
 
 #: The ``value`` axis as `__pdoc__`'s ``short_arrays`` argument. The public
 #: `unxt.config` traits keep their own spelling of the same three-way choice.

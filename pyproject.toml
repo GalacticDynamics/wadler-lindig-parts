@@ -1,0 +1,112 @@
+[project]
+authors = [
+  { name = "Nathaniel Starkman", email = "nstarman@users.noreply.github.com" },
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Markup",
+]
+# Exactly two, forever. Constitution principle I, enforced by a test in
+# `tests/test_engine.py` that parses every module and fails on any import
+# outside this set plus the standard library. Adding a third means deleting
+# that test, which a reviewer will see.
+dependencies  = ["plum-dispatch>=2.7.0", "wadler-lindig>=0.1.8"]
+description   = "A parts layer over wadler-lindig: one engine behind repr, str, format and markup."
+keywords      = ["formatting", "pretty-printing", "repr", "wadler-lindig"]
+license       = "BSD-3-Clause"
+license-files = ["LICENSE"]
+name          = "wadler-lindig-parts"
+readme        = "README.md"
+# Deliberately looser than unxt's >=3.12: a general-purpose renderer should not
+# inherit a consumer's floor. The 3.10 CI job is what makes this a fact.
+requires-python = ">=3.10"
+urls            = { repository = "https://github.com/GalacticDynamics/wadler-lindig-parts" }
+version         = "0.1.0"
+
+[build-system]
+build-backend = "hatchling.build"
+requires      = ["hatchling"]
+
+[dependency-groups]
+dev = [
+  { include-group = "docs" },
+  { include-group = "lint" },
+  { include-group = "tests" },
+]
+# The whole docs group is 3.11+: `mkdocstrings` 1.0.8 and `zensical` 0.0.74
+# both require it, which is above this package's own floor. `uv lock` resolves
+# the entire `requires-python` range rather than just the active interpreter,
+# so without these markers the 3.10 split is unsatisfiable and no lockfile can
+# be produced at all.
+#
+# The lower bound on `zensical` is load-bearing, not hygiene. Left unpinned,
+# uv silently satisfied the 3.10 split with a years-old zensical instead of
+# reporting the conflict -- so the group looked 3.10-installable while being
+# nothing of the kind. Pinning it is what surfaced the real floor.
+#
+# Nothing is lost by the markers: the docs are built on the newest
+# interpreter, and no runtime dependency is affected.
+docs = [
+  'mkdocstrings[python]==1.0.8; python_version >= "3.11"',
+  'pymdown-extensions==12.3; python_version >= "3.11"',
+  'zensical>=0.0.74; python_version >= "3.11"',
+]
+# The constitution names `uv run pre-commit run --all-files` as the lint
+# gate, so `pre-commit` itself is the runner here. quax uses `prek`, its
+# faster drop-in; following quax there would leave the constitution naming a
+# command that does not exist in this environment.
+lint  = ["pre-commit>=4", "ruff>=0.15.9"]
+tests = ["pytest>=8.3.5", "sybil>=9"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wadler_lindig_parts"]
+
+[tool.pytest.ini_options]
+addopts    = ["-ra"]
+minversion = "8.3"
+pythonpath = ["src"]
+# All four roots: the docstrings in `src/` and the fences in `docs/` and the
+# README are tests too (constitution principle III).
+testpaths = ["README.md", "docs", "src/", "tests"]
+
+[tool.ruff.lint]
+fixable = ["I001", "F401", "UP"]
+ignore  = ["E402", "E731", "E741"]
+select  = ["E", "F", "I001", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# F811 (redefinition) is exempted under `src` only, and for the same reason
+# unxt exempts it: plum-dispatch registers many same-named functions per
+# module, so inside `src` F811 is a false-positive factory. Outside `src` a
+# redefinition is a real bug -- a duplicated test name means one test silently
+# never runs -- so the ignore stays scoped rather than global.
+"src/**" = ["F811"]
+# `__init__.py` exists to re-export. Its `__all__` is built from the two
+# modules' own `__all__` rather than retyped, so ruff cannot see statically
+# that the imported names are used; an import-time guard in that file checks
+# the same thing at runtime, in both directions.
+"src/wadler_lindig_parts/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+combine-as-imports     = true
+extra-standard-library = ["typing_extensions"]
+lines-after-imports    = 2
+order-by-type          = false
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include                          = ["src/wadler_lindig_parts", "tests"]
+reportIncompatibleMethodOverride = true
+# The plum-dispatch pattern -- `@dispatch.abstract` then one `@dispatch`
+# overload per type -- is a deliberate redeclaration of one name, and the
+# existing `# type: ignore[no-redef]` comments are mypy's spelling, which
+# pyright does not honour. This is the same false positive as ruff's F811,
+# exempted for the same reason and only here, where plum is in use.
+reportRedeclaration = false

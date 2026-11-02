@@ -11,10 +11,10 @@ import wadler_lindig as wl
 
 from wadler_lindig_parts import (
     PPart,
-    ReprMixin,
     pparts,
     pspec,
     register_alias,
+    ReprMixin,
     unregister_alias,
 )
 from wadler_lindig_parts.examples import Version
