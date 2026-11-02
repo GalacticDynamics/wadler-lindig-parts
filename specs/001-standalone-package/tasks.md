@@ -126,7 +126,7 @@ never exercised.
 
 **Independent test**: open the pull request and watch the checks.
 
-- [X] T028 [P] [US5] Create `.github/workflows/ci.yml` modelled on `nstarman/quax@main`'s: a `setup` job deriving oldest/newest from `PYTHON_VERSIONS: '["3.10", "3.11", "3.12", "3.13", "3.14"]"'`, a `lint` job running `uv run --frozen prek run --all-files` with `SKIP: no-commit-to-branch`, a `tests` matrix over every version using `uv sync --no-default-groups --group tests --locked`, `oldest-supported` (`--resolution lowest-direct`) and `newest-supported` (`--upgrade`) jobs, and an `alls-green` gate. **3.10 must be in the matrix** — it is what makes the floor a fact rather than a claim about syntax (constitution, Development Workflow; FR-021). Drop quax's `integration` job: there are no integration tests here. Keep every action pinned by SHA with the version in a trailing comment
+- [X] T028 [P] [US5] Create `.github/workflows/ci.yml` modelled on `nstarman/quax@main`'s: a `setup` job deriving oldest/newest from `PYTHON_VERSIONS: '["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]"'`, a `lint` job running `uv run --frozen prek run --all-files` with `SKIP: no-commit-to-branch`, a `tests` matrix over every version using `uv sync --no-default-groups --group tests --locked`, `oldest-supported` (`--resolution lowest-direct`) and `newest-supported` (`--upgrade`) jobs, and an `alls-green` gate. **3.10 must be in the matrix** — it is what makes the floor a fact rather than a claim about syntax (constitution, Development Workflow; FR-021). Drop quax's `integration` job: there are no integration tests here. Keep every action pinned by SHA with the version in a trailing comment
 - [X] T029 [P] [US5] Create `.github/workflows/build_docs.yml` modelled on quax `main`'s: build on pull requests and pushes to `main`, upload and deploy to Pages only on `main`. Run `uv run --frozen zensical build --clean --strict` — quax uses `--clean` alone; `--strict` is this package's requirement (FR-019). **Omit the notebook-conversion step**: this package has no notebooks
 - [X] T030 [P] [US5] Create `.github/workflows/cd.yml` — **exactly that filename**, with GitHub environment `name: pypi` and `url: https://pypi.org/p/wadler-lindig-parts`, gated on `if: startsWith(github.ref, 'refs/tags/v')`, triggered on `push: tags: ["v*"]` and `workflow_dispatch`. Modelled on quax `main`'s `cd.yml`: a `build` job using `hynek/build-and-inspect-python-package` with build provenance, then a publish job downloading the `Packages` artifact to `dist/` and calling `pypa/gh-action-pypi-publish`. The filename and environment name are fixed by the trusted-publishing configuration being set up on PyPI's side; a mismatch fails the upload with no useful error. Actions pinned by SHA with the version in a trailing comment
 - [X] T031 [US5] Run `uv run pre-commit run --all-files` and fix everything it reports until clean. This is the lint gate, not `ruff check` alone — the formatter and the other hooks catch what the linter does not (constitution, Development Workflow; FR-022). If `no-commit-to-branch` objects outside a commit, skip that one hook as CI does
@@ -212,7 +212,7 @@ no later checkpoint means anything.
 
 ```bash
 # Three independent new workflow files:
-Task: "Create .github/workflows/ci.yml with the 3.10-3.14 matrix"
+Task: "Create .github/workflows/ci.yml with the 3.10-3.15 matrix"
 Task: "Create .github/workflows/build_docs.yml with --clean --strict"
 Task: "Create .github/workflows/cd.yml, environment pypi, gated on v*"
 ```

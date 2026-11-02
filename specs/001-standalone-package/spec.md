@@ -464,7 +464,8 @@ what the governance section's "say which is the bug" is for.
 - **No notebooks.** The sibling project's documentation group carries a notebook
   converter and its automation runs a conversion step. This package has no
   notebooks, so both are omitted.
-- **The interpreter range** is 3.10 through 3.14, per the constitution.
+- **The interpreter range** is 3.10 through 3.15, per the constitution
+  (amended once 3.15.0 final was released and the suite was run on it).
 - **The unresolved rendering fault may not appear at all.** It was never
   root-caused in the consumer's repository, and nothing establishes it will
   reproduce here. The requirement is to investigate and report if the signature

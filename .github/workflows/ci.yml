@@ -24,7 +24,13 @@ env:
   FORCE_COLOR: 3
   # 3.10 is in here deliberately. The constitution's floor is >=3.10, and this
   # job is what makes that a fact rather than a claim about syntax.
-  PYTHON_VERSIONS: '["3.10", "3.11", "3.12", "3.13", "3.14"]'
+  #
+  # The last entry is not just another matrix row: the `setup` job derives
+  # `newest-python` from it, so the `newest-supported` job runs there too.
+  # Adding a version therefore claims two things -- that the suite passes on
+  # that interpreter, and that it passes there with every dependency at its
+  # newest release. Both were observed before 3.15 was added here.
+  PYTHON_VERSIONS: '["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]'
 
 jobs:
   setup:

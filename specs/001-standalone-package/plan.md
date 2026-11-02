@@ -21,7 +21,7 @@ its evidence stated.
 
 ## Technical Context
 
-**Language/Version**: Python, floor 3.10, CI through 3.14. The floor is a
+**Language/Version**: Python, floor 3.10, CI through 3.15. The floor is a
 constitutional constraint, not a default — `>=3.10` is deliberately looser than
 `unxt`'s `>=3.12`.
 
@@ -78,7 +78,7 @@ site, never inferred ✓ (T-013).
 **Development Workflow check**: test first ✓ (T-014 through T-018 each write
 and run the test before the change); `uv run pytest` green ✓ (T-019);
 `pre-commit run --all-files` as the gate, not `ruff check` alone ✓ (T-008,
-T-020); CI 3.10–3.14 ✓ (T-021); pull request on a branch, never `main` ✓
+T-020); CI 3.10–3.15 ✓ (T-021); pull request on a branch, never `main` ✓
 (already on `claude/adoring-cannon-e140c6`, and the `no-commit-to-branch` hook
 enforces it).
 
@@ -139,7 +139,7 @@ docs/
     └── make-a-type-formattable.md        # new — converted + re-grounded
 
 .github/workflows/
-├── ci.yml                           # new — lint, tests 3.10–3.14, oldest/newest
+├── ci.yml                           # new — lint, tests 3.10–3.15, oldest/newest
 ├── build_docs.yml                   # new — zensical build --clean --strict
 └── cd.yml                           # new — exists, gated on v*, never run
 
