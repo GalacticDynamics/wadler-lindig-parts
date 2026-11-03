@@ -6,9 +6,10 @@ vocabulary and one entry point, and most of them share the renderer as well.
 The constructor form `repr` produces is the exception, for reasons below. This
 page is about why that is worth doing and what it cost.
 
-For the spec vocabulary itself, see [the grammar](../index.md). To make a type
-of your own formattable, see
-[How to make your own type formattable](../how-to/make-a-type-formattable.md).
+For the spec vocabulary itself, see
+[Format spec grammar](../reference/spec-grammar.md). To make a type of your
+own formattable, see
+[How to make a type formattable](../how-to/make-a-type-formattable.md).
 
 ## Why one renderer and not four
 
@@ -28,7 +29,8 @@ type and it gets every markup, including ones added later by somebody else.
 ```python
 >>> from wadler_lindig_parts.examples import Version
 
->>> repr(Version(2, 1)), f"{Version(2, 1):html}", f"{Version(2, 1):latex}"
+>>> v = Version(2, 1)
+>>> repr(v), f"{v:html}", f"{v:latex}"
 ('2.1', '<span>2</span>.<span>1</span>', '$2.1$')
 
 ```
@@ -164,9 +166,9 @@ still renders `2.1`, because a version's own `.` separator is a `sep` fragment
 and the `sep` axis leaves those alone:
 
 ```python
->>> f"{Version(2, 1):mul}"
+>>> f"{v:mul}"
 '2.1'
->>> f"{Version(2, 1):bare}"
+>>> f"{v:bare}"
 '2.1'
 
 ```
@@ -187,7 +189,7 @@ the output moves. `inert_axes` does exactly that:
 >>> from wadler_lindig_parts import inert_axes, parse_spec, render
 
 >>> spec = parse_spec("mul")
->>> inert_axes(Version(2, 1), spec, render(Version(2, 1), spec))
+>>> inert_axes(v, spec, render(v, spec))
 ['sep']
 
 ```
@@ -222,3 +224,50 @@ mechanism but the status of three rules: the registry's collision behaviour,
 the refusal of a malformed markup row, and the moment `__repr_spec__` is
 resolved were implementation details inside one package, and are contract
 between distributions now. Each has a test pinning it, for that reason.
+
+## Why the layout is not ours
+
+`parts_to_doc` returns a `wadler_lindig` document, not a string. Where a line
+breaks, how far a continuation is indented, and how a value nests inside a
+larger value are decided by `wadler_lindig` afterwards. This package decides
+only what the fragments are and what roles they carry.
+
+The reason is that breaking lines well is harder than it looks. Given a nested
+structure, you want the outermost group that still fits on one line to stay on
+one line, and every group containing it to break — which is the problem the
+Wadler–Lindig algorithm solves. Solving it again here would mean solving it
+once per markup, with a separate set of bugs each time.
+
+Handing the document over also settles one question that would otherwise be
+easy to get wrong: whether a markup's wrapper text costs columns. It does not.
+The `<span>` tags are emitted zero-width, so the same value breaks in the same
+place no matter which markup asked for it:
+
+```python
+>>> from wadler_lindig_parts import doc_to_str, parts_to_doc, pparts
+>>> from wadler_lindig_parts.examples import Term
+
+>>> t = Term([1.0, 2.0, 3.0], "metres")
+>>> print(doc_to_str(parts_to_doc(pparts(t), markup="text"), 20))
+[1.0, 2.0, 3.0] *
+  metres
+>>> parts = pparts(t, markup="html")
+>>> print(doc_to_str(parts_to_doc(parts, markup="html"), 20))
+<span>[1.0, 2.0, 3.0]</span> *
+  <span>metres</span>
+
+```
+
+The HTML line is 50 characters wide and the text line is 24, but both break
+after the `*` and indent `metres` by two, because only the visible content was
+measured against the width of 20. So you can reason about where a value will
+wrap without knowing which markup will render it — and a markup added later
+gets that behaviour without asking for it.
+
+What this costs is control. You cannot tune the breaking from this side: a
+payload is atomic, so no width narrower than `[1.0, 2.0, 3.0]` will split it,
+and a library that wants to break inside its own values has to emit more
+fragments rather than request a different layout.
+
+For the behaviour on its own, without the argument, see
+[`width` and `indent`](../reference/axes.md#width).

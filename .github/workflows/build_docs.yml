@@ -44,13 +44,39 @@ jobs:
       - name: Build docs
         run: uv run --frozen zensical build --clean --strict
 
+      # zensical reports "No issues found" for a config that emits nothing, so
+      # the built site is checked rather than the build's own word.
       - name: Confirm the API reference actually rendered
         run: |
-          if ! grep -q 'Add an axis to the grammar' site/api/index.html; then
+          if ! grep -q 'Add an axis to the grammar' site/reference/api/index.html; then
             echo "::error::mkdocstrings rendered nothing on the API page"
             exit 1
           fi
           echo "API reference rendered"
+
+      # The API page moved to reference/ and a meta-refresh stub holds the old
+      # URL. zensical has no redirect mechanism, so the stub is a committed
+      # static file -- which means nothing but this step would notice if a
+      # future build stopped copying it.
+      - name: Confirm the old API URL still redirects
+        run: |
+          if ! grep -q '\.\./reference/api/' site/api/index.html; then
+            echo "::error::the /api/ redirect stub is missing or no longer points at reference/api/"
+            exit 1
+          fi
+          echo "old API URL redirects"
+
+      # Every mode section must have emitted a real landing page: a nav entry
+      # for a page that does not exist builds clean and simply serves nothing.
+      - name: Confirm every section landing page exists
+        run: |
+          for page in tutorials how-to reference explanation; do
+            if [ ! -s "site/$page/index.html" ]; then
+              echo "::error::site/$page/index.html is missing or empty"
+              exit 1
+            fi
+          done
+          echo "all four section landing pages present"
 
   upload:
     needs: build
