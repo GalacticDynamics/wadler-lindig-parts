@@ -204,6 +204,26 @@ alias 'mine' is already registered as 'call-type'
 
 ```
 
+It also refuses any registered name containing a `-`. The separator joins a
+spec's components and `parse_spec` splits on it before looking anything up, so
+such a name could never be resolved — and `axis=word` would not rescue it,
+because the qualified form is split first too. Use `_` inside a name if you
+need two words:
+
+```python
+>>> try:
+...     register_alias("two-words", "call-type")
+... except ValueError as e:
+...     print(e)
+alias 'two-words' may not contain '-': it joins the components of a spec, so a
+name holding one can never be resolved, with or without a qualifying 'axis='
+prefix
+
+```
+
+An alias's *expansion* is a whole spec, so it is full of separators — that is
+what an alias is for. The restriction is on the name alone.
+
 A **keyword** claimed by a second axis is the one case that does *not* raise at
 registration. Both registrations succeed and the word becomes ambiguous; the
 refusal lands when a spec uses it bare, and `axis=word` keeps working for each
