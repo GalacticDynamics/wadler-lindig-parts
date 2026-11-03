@@ -6,6 +6,10 @@ on:
   push:
     branches:
       - main
+      # Maintenance branches for released lines. A backport lands here as a
+      # pull request, but a direct push to the branch must be tested too --
+      # this is the branch a patch release is tagged from.
+      - "versions/*"
   schedule:
     - cron: "0 0 * * 4"  # Every Thursday at midnight UTC
 
@@ -16,6 +20,12 @@ concurrency:
   # Each push to main gets its own group, so merges never cancel each other
   # and main keeps a complete CI record. All other events keep the per-ref
   # group and still supersede older runs.
+  #
+  # Note on the backport bot: `push` above is an allowlist, so the bot's
+  # `auto-backport-of-pr-N` branches never trigger a push build -- only the
+  # pull request it opens, which is what should be tested. Projects whose CI
+  # builds every push have to exclude that pattern explicitly; this one does
+  # not.
   group: >-
     ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
