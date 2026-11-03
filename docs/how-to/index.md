@@ -20,6 +20,10 @@ axes, keywords or constraints rather than steps, that is in the
 - [How to nest formattable values](nest-formattable-values.md) — when your
   type holds other formattable values and must forward axes to them.
 
+- [How to write a constructor-form repr](write-a-constructor-repr.md) — when
+  `call` layout should print a constructor call and your type is not a
+  dataclass.
+
 ## Extending the grammar
 
 - [How to add an axis](add-an-axis.md) — when a spec needs to ask for
@@ -27,16 +31,6 @@ axes, keywords or constraints rather than steps, that is in the
   another library.
 - [How to add a markup](add-a-markup.md) — when you need an output format
   beside text, HTML and LaTeX.
-
-## Not yet written
-
-- **How to write `__pdoc__` for a constructor-form repr** — currently covered
-  only as a pointer in
-  [How to make a type formattable](make-a-type-formattable.md#if-your-types-repr-is-a-constructor-expression).
-  A dataclass gets a usable `__pdoc__` for free, so the guide is needed only
-  for types that are not dataclasses, and it has to document
-  `wadler_lindig`'s protocol rather than this package's.
-- **How to register `pvalue` for your own payload type** — `pvalue` is a
-  dispatch point, which is how a library with array types decides what a
-  value format spec means for them. The extension point is real and public;
-  no worked example has been written for it yet.
+- [How to render your own payload type](render-your-own-payload-type.md) —
+  when you own the array or quantity inside a fragment and want to decide
+  what a value format spec means for it.

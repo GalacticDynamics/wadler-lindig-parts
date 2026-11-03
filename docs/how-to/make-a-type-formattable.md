@@ -84,7 +84,9 @@ renders through it. A plain dataclass already gets a usable `__pdoc__` from
 
 ```
 
-For why that one route is not built from fragments, see
+For the full recipe, see
+[How to write a constructor-form repr](write-a-constructor-repr.md); for why
+that one route is not built from fragments, see
 [Why formatting is one engine](../explanation/why-formatting-is-one-engine.md).
 
 ## If your type registers no `pparts` at all
@@ -95,5 +97,6 @@ spec raises, since it has declared no elements to format.
 ## See also
 
 - [How to nest formattable values](nest-formattable-values.md) — forward axes to values inside your type.
+- [How to write a constructor-form repr](write-a-constructor-repr.md) — the `call` side.
 - [How to add an axis](add-an-axis.md) — add a word to the grammar.
 - [API](../reference/api.md) — `PPart`, `PGroup`, `ReprMixin`, `pparts`.

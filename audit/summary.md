@@ -85,17 +85,20 @@ described the `value` axis as controlling "how each element is formatted".
 
 ## Gaps found and not filled
 
-Both appear under *Not yet written* on `how-to/index.md`.
+**None remaining.** Both gaps the restructure identified were written
+afterwards, at the reviewer's request, once their APIs had been verified
+against the installed source rather than guessed:
 
-- **How to write `__pdoc__` for a constructor-form repr.** The old how-to
-  pointed at this and no page existed. A dataclass gets a usable `__pdoc__`
-  from `wadler_lindig` for free, so the guide is only needed for types that
-  are not dataclasses — and it would have to document `wadler_lindig`'s
-  protocol, which I did not verify. Not written rather than guessed.
-- **How to register `pvalue` for your own payload type.** `pvalue` is a
-  public dispatch point and is how a library with array types decides what a
-  value format spec means for them. The extension point is real; no worked
-  example was written.
+- `how-to/write-a-constructor-repr.md` — the `__pdoc__` protocol is
+  `__pdoc__(self, **kwargs) -> None | AbstractDoc`, read from
+  `wadler_lindig/_definitions.py`. Returning a non-`AbstractDoc` (including
+  `None`) falls through to the default, which is demonstrated rather than
+  asserted.
+- `how-to/render-your-own-payload-type.md` — `pvalue` dispatch, with the
+  `value_spec` and `markup_table(...)["escape"]` contract taken from the
+  default implementation in `generic.py`.
+
+Both are doctested, so the APIs they document are executed in CI.
 
 ## Contradictions found in the source
 

@@ -21,8 +21,10 @@ nav = [
     "how-to/index.md",
     "how-to/make-a-type-formattable.md",
     "how-to/nest-formattable-values.md",
+    "how-to/write-a-constructor-repr.md",
     "how-to/add-an-axis.md",
     "how-to/add-a-markup.md",
+    "how-to/render-your-own-payload-type.md",
   ] },
   { "Reference" = [
     "reference/index.md",
