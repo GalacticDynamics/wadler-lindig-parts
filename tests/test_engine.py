@@ -5,6 +5,7 @@ tests that travel with `engine.py` and `generic.py` when they become their own
 package, and they must pass with none of unxt's axes registered.
 """
 
+import dataclasses
 import pathlib
 import re
 
@@ -981,3 +982,50 @@ def test_a_name_containing_the_separator_is_refused_at_registration() -> None:
         register_markup(bad, MARKUPS["text"])
     assert bad not in MARKUPS
     assert bad not in _KEYWORDS
+
+
+# ============================================================================
+# Registration identity
+#
+# These two guard a failure that is silent, which is the only reason they are
+# worth their lines. It happened once, in `unxt`, before the extraction: a
+# doctest runner imported the engine through a second module path, so the
+# `@pparts.dispatch` calls in `examples` registered onto a `plum.Function` that
+# nothing ever called. `Term` then resolved to a generic method and rendered as
+# *one* fragment -- the whole of `[1.0, 2.0] * x` as a single `PPart` -- instead
+# of coefficient, operator and symbol. Every route still returned a string, so
+# it read as a layout quirk rather than a dispatch failure, and the only tell
+# was a separator that ignored its markup: `$[1.0, 2.0] * x$` where LaTeX owed
+# `\,`.
+
+
+def test_registration_lands_on_the_function_that_is_called() -> None:
+    """One `pparts` across the package, the engine module and `examples`.
+
+    Identity is what to assert, because the symptom is not an exception: a
+    split registry renders, it just renders the wrong decomposition.
+    """
+    assert pparts is engine_module.pparts
+    assert examples.pparts_term is pparts
+    assert examples.pparts_version is pparts
+
+    # And the registration a split would orphan actually answers.
+    assert len(pparts(examples.Term([1.0, 2.0], "x"))) == 3
+
+
+def test_an_unregistered_reprmixin_subclass_cannot_fail_silently() -> None:
+    """A `ReprMixin` subclass with no `pparts` raises rather than degrading.
+
+    This is what keeps the failure above loud here. A generic method that fell
+    back to `str(obj)` in one fragment would make a missing registration render
+    plausibly, which is exactly how the `unxt` case survived a test run.
+    """
+
+    @dataclasses.dataclass(repr=False)
+    class Unregistered(ReprMixin):
+        value: object
+
+        __repr_spec__ = "mul"
+
+    with pytest.raises(TypeError, match="registers no pparts"):
+        pparts(Unregistered(1.0))
