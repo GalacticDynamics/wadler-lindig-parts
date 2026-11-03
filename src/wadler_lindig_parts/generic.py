@@ -19,6 +19,7 @@ import wadler_lindig as wl
 from .engine import (
     _KEYWORDS,
     _MARKUPS,
+    _reject_separator,
     ALIASES,
     Axis,
     dispatch,
@@ -132,6 +133,9 @@ def register_markup(
 ) -> None:
     """Add a markup (a `MARKUPS` row) and make it selectable by spec."""
     _check_markup_row(row)
+    # A markup name becomes a keyword on the `markup` axis below, so it is
+    # subject to the same reservation as any other registered name.
+    _reject_separator("markup", name)
     if name in _MARKUPS and not replace:
         msg = f"markup {name!r} is already registered"
         raise ValueError(msg)

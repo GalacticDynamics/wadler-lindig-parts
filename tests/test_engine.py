@@ -935,3 +935,49 @@ def test_a_repr_spec_naming_an_unregistered_axis_fails_at_class_creation() -> No
         assert LateEnough._repr_spec_parsed["late_axis"] == f"late_axis:{spec}"
     finally:
         unregister_axis("late_axis")
+
+
+def test_a_name_containing_the_separator_is_refused_at_registration() -> None:
+    """`-` joins components, so no registered name may contain one.
+
+    `parse_spec` splits on ``-`` before it looks anything up, so a name with a
+    ``-`` in it can never be the thing that is looked up. Registration used to
+    accept such a name and the word was then simply unusable: `register_axis`
+    returned normally, the keyword never resolved, and -- the part that makes
+    this worth refusing rather than documenting -- ``axis=word`` did not
+    rescue it either, because the qualified form is split on ``-`` first too.
+    The alias case was worse still: `parse_spec` returned a `Spec` full of
+    *defaults* rather than raising, so the mistake surfaced later, as a
+    complaint about an invalid Python format spec.
+
+    All three entry points that write into `_KEYWORDS` are covered, because
+    all three have the same defect: an axis's name and its keywords, an alias
+    name, and a markup name.
+
+    Watched failing before the guard existed: every one of these registrations
+    was accepted, so each `pytest.raises` failed on DID NOT RAISE.
+    """
+    bad = "two-words"
+
+    # An axis's keyword.
+    with pytest.raises(ValueError, match="may not contain"):
+        register_axis(_tmp_axis("hyphen_keyword", bad))
+    assert "hyphen_keyword" not in AXES
+
+    # An axis's own name, which is what `axis=word` is spelled with.
+    with pytest.raises(ValueError, match="may not contain"):
+        register_axis(_tmp_axis(bad, "fine"))
+    assert bad not in AXES
+    assert "fine" not in _KEYWORDS
+
+    # An alias name. Its *expansion* is a whole spec and so is full of
+    # separators -- that is the point of an alias -- but its name is a token.
+    with pytest.raises(ValueError, match="may not contain"):
+        register_alias(bad, "html-mul")
+    assert bad not in ALIASES
+
+    # A markup name, which `register_markup` also publishes as a keyword.
+    with pytest.raises(ValueError, match="may not contain"):
+        register_markup(bad, MARKUPS["text"])
+    assert bad not in MARKUPS
+    assert bad not in _KEYWORDS

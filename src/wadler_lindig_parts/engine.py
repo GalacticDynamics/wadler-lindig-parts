@@ -668,6 +668,28 @@ def _free_text_axis() -> Axis | None:
     return next((ax for ax in AXES.values() if ax.free_text), None)
 
 
+def _reject_separator(kind: str, name: str, /) -> None:
+    """Refuse a registered name that `parse_spec` could never look up.
+
+    ``-`` joins a spec's components, and `parse_spec` splits on it *before* it
+    looks anything up, so a name containing one is unreachable. Not merely
+    inconvenient: ``axis=word`` is split first too, so the qualified form does
+    not rescue it either, and for an alias the parse returns a `Spec` full of
+    defaults rather than raising. Refusing at registration turns all of that
+    into one error at the point of the mistake.
+
+    This is the one place that knows ``-`` is reserved; it has to agree with
+    the ``spec.split("-")`` in `parse_spec`.
+    """
+    if "-" in name:
+        msg = (
+            f"{kind} {name!r} may not contain '-': it joins the components of "
+            "a spec, so a name holding one can never be resolved, with or "
+            "without a qualifying 'axis=' prefix"
+        )
+        raise ValueError(msg)
+
+
 def register_axis(axis: Axis, /, *, replace: bool = False) -> Axis:
     """Add an axis to the grammar, rejecting any keyword collision.
 
@@ -675,6 +697,9 @@ def register_axis(axis: Axis, /, *, replace: bool = False) -> Axis:
     ``vector_form`` gets exactly what the built-in axes get -- there is no
     privileged set. ``replace=True`` swaps out an axis of the same name.
     """
+    _reject_separator("axis", axis.name)
+    for word in axis.keywords:
+        _reject_separator("keyword", word)
     if axis.name in AXES and not replace:
         msg = f"axis {axis.name!r} is already registered"
         raise ValueError(msg)
@@ -709,6 +734,9 @@ def register_alias(name: str, expansion: str, /, *, replace: bool = False) -> No
     else. Silently overwriting is how a spec changes meaning without anyone
     editing the spec. ``replace=True`` overwrites an alias deliberately.
     """
+    # The name only; an alias's *expansion* is a whole spec and so is full of
+    # separators -- that is what an alias is for.
+    _reject_separator("alias", name)
     if name in _KEYWORDS:
         msg = f"alias {name!r} is already a keyword of axis {_KEYWORDS[name][0]!r}"
         raise ValueError(msg)
