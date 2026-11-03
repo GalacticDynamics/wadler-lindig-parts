@@ -63,7 +63,14 @@ described the `value` axis as controlling "how each element is formatted".
 - `uv run pre-commit run --all-files` — every hook passes (taplo reformatted
   `zensical.toml`; re-staged and re-run clean).
 - `check_repo_refs.py . --old-docs <pristine> --new-docs docs/` — **clean**,
-  96 files scanned outside the docs tree, 4 doc paths moved.
+  96 files scanned outside the docs tree, 4 doc paths moved. **It could not
+  catch the one real breakage.** `build_docs.yml` greps
+  `site/api/index.html` to prove mkdocstrings rendered; that is a
+  *built-site* path, not a `docs/` source path, so the checker had nothing to
+  match. CI caught it instead, which is where it should have been caught. The
+  guard now points at `site/reference/api/index.html`, and two more were
+  added beside it: the old `/api/` URL must still redirect, and all four
+  section landing pages must be non-empty.
 - `docs_inventory.py` over the **finished** tree — tutorial count 0 → 4. It
   reported one duplicated table row, which is the shared *See also* navigation
   line on `reference/axes.md` and `reference/registration-rules.md`; that is a
