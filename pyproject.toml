@@ -63,6 +63,28 @@ docs = [
 lint  = ["pre-commit>=4", "ruff>=0.15.9"]
 tests = ["pytest>=8.3.5", "sybil>=9"]
 
+# An allowlist, not a denylist. Without this section hatchling falls back to
+# "everything git does not ignore", which built a 202 KB sdist against a 25 KB
+# wheel: `.claude/`, `.specify/`, `specs/`, `.github/` and the lockfile all
+# shipped. A PyPI upload is permanent, so the sdist carries only what is
+# needed to build the package and run its suite -- and anything added to this
+# repository later is excluded by default rather than silently published.
+#
+# `docs/` and `conftest.py` are not padding: `testpaths` below collects
+# doctests from `README.md` and `docs/`, and `conftest.py` is the Sybil
+# wiring. Drop any of the three and an sdist consumer cannot run the suite
+# they were shipped.
+[tool.hatch.build.targets.sdist]
+include = [
+  "/LICENSE",
+  "/README.md",
+  "/conftest.py",
+  "/docs",
+  "/pyproject.toml",
+  "/src",
+  "/tests",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/wadler_lindig_parts"]
 
