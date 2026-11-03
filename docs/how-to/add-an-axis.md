@@ -5,11 +5,11 @@ description: Register a new word in the format-spec grammar, scope it to layouts
 
 # How to add an axis
 
-This guide shows you how to add a word to the format-spec vocabulary so specs
-can ask your library for something the engine has never heard of.
+Registering an axis adds a word to the format-spec vocabulary, so a spec can
+ask your library for something the package has no concept of.
 
-For a worked introduction, see
-[Teach the grammar a new word](../tutorials/teach-the-grammar-a-new-word.md).
+[Teach the grammar a new word](../tutorials/teach-the-grammar-a-new-word.md)
+walks through one end to end if you would rather see it built up.
 
 ## Register the axis
 

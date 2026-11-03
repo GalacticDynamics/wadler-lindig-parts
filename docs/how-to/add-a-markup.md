@@ -5,9 +5,9 @@ description: Register a new output format so every registered type can render in
 
 # How to add a markup
 
-This guide shows you how to add an output format beside `text`, `html` and
-`latex`. Every type that has registered `pparts` gets it immediately —
-including types belonging to libraries that know nothing about you.
+A markup is an output format: `text`, `html` and `latex` ship, and you can add
+more. Every type that has registered `pparts` can render in yours as soon as
+it exists, including types from libraries that know nothing about you.
 
 ## Register a markup row
 
@@ -53,8 +53,9 @@ to the engine's default for that keyword.
 
 ## If your format needs escaping
 
-Pass a callable as `escape`; it is applied to fragment text before wrapping.
-`html.escape` is the obvious choice for markup languages:
+Pass a callable as `escape` and it is applied to fragment text before
+wrapping. For anything angle-bracket-based, `html.escape` is the one you
+want:
 
 ```python
 >>> import html as html_module

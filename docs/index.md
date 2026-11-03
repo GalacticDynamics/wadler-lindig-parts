@@ -25,7 +25,8 @@ every markup, including ones added later by somebody else.
 
 ```
 
-Three routes, one `pparts` method, and they cannot disagree.
+All three came out of one `pparts` method. They cannot drift apart, because
+there is only one description of what a `Version` is.
 
 ```
 pip install wadler-lindig-parts
@@ -40,22 +41,22 @@ on Python 3.10 through 3.15.
 
 - **[Tutorials](tutorials/index.md)**
 
-    Start here if the package is new to you. Two lessons that build a type
-    from nothing and then extend the grammar it speaks.
+    Start here if the package is new to you. Two lessons: build a type that
+    renders itself, then add a word to the format-spec vocabulary.
 
 - **[How-to guides](how-to/index.md)**
 
-    Task-sized answers for people already building something: register a
-    type, nest values, add an axis, add a markup.
+    Short answers for people already building something: register a type,
+    nest values, add an axis, add a markup, render your own payload type.
 
 - **[Reference](reference/index.md)**
 
-    The spec grammar, the six axes, the registration rules, and every public
-    name.
+    The spec grammar, the six axes, what registration refuses, and every
+    public name.
 
 - **[Explanation](explanation/index.md)**
 
-    Why there is one engine rather than four, and what the design cost.
+    Why one renderer rather than four, and what that choice costs.
 
 </div>
 

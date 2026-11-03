@@ -5,13 +5,12 @@ description: Register a pvalue method so the value axis and format specs mean so
 
 # How to render your own payload type
 
-This guide shows you how to decide what a value format spec means for a type
-you own — the array, quantity or vector a fragment carries.
+A fragment's payload — the array, quantity or vector it carries — is rendered
+by `pvalue`. The default sends it through `repr`, or through `format` when the
+spec carries one, which suits a scalar and suits nothing with structure.
 
-`pvalue` renders the *payload* inside a fragment. The default sends it through
-`repr`, or through `format` when the spec carries one, which is right for
-scalars and wrong for anything with structure. It is a dispatch point, so you
-replace it for your own types without touching the engine.
+`pvalue` is a dispatch point, so you can register a method for your own type
+and decide there what a value format spec means for it.
 
 ## Register a method
 
@@ -50,9 +49,9 @@ Without the method the payload would have fallen back to its `repr`,
 
 ## Honour `value_spec`
 
-This is the point of registering: you decide what a format spec means. Here it
-is applied per component, which the default could not do — `format()` on a
-container raises.
+Here the spec is applied to each component. The default could not do that:
+it calls `format()` on the payload as a whole, and `format()` on a container
+raises.
 
 ```python
 >>> pspec(t, "mul-.2f")
@@ -85,9 +84,9 @@ not.
 
 ## Accept and forward `**kw`
 
-Axes your method does not consume are passed through it, and a nested value
-may care about one. Forwarding costs nothing and dropping it silently breaks
-composition.
+Axes your method does not consume are passed through it on their way to
+anything nested inside. Drop `**kw` and those values stop seeing the spec,
+with nothing raised to tell you.
 
 ## See also
 

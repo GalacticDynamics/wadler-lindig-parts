@@ -8,7 +8,8 @@ description: Build a Duration type that prints itself as text, HTML and LaTeX �
 In this tutorial we will build a `Duration` type that prints as `3:07`, and
 then watch it print itself as HTML and as LaTeX without our writing either.
 
-We will write one method. Everything else arrives on its own.
+We will write one method, `pparts`. The HTML and the LaTeX come from the
+package.
 
 You need Python 3.10 or newer and the package:
 
@@ -39,8 +40,18 @@ Two things in there are doing work. `ReprMixin` is what will route `repr`,
 `str` and `format` through the engine. `repr=False` stops the dataclass
 decorator writing its own `__repr__` over the one the mixin gives us.
 
-Nothing prints nicely yet, because we have not said what a duration is *made
-of*. That is the next step, and it is the only code we write.
+Printing one now would fail, and the error says exactly what is missing:
+
+```python
+>>> Duration(3, 7)
+Traceback (most recent call last):
+    ...
+TypeError: Duration subclasses ReprMixin but registers no pparts (register one with @pparts.dispatch)
+
+```
+
+We have not told the package what a duration is *made of*. That is the next
+step, and the only code we write.
 
 ## Step 2: say what it is made of
 
@@ -100,13 +111,13 @@ LaTeX works too, and we did not write that either:
 
 ```
 
-This is the thing to take away from this tutorial: we described the value
-once, and every output route laid that same description out its own way.
+We described the value once. Each output format read that same description
+and wrapped it its own way: `<span>` tags for HTML, `$…$` for LaTeX.
 
 ## Step 4: why the colon was marked
 
-Let's check what `"sep"` bought us. The `mul` keyword asks for a
-multiplication separator between a value and its label:
+Now for the colon. The `mul` keyword asks for a multiplication sign between a
+value and its label:
 
 ```python
 >>> f"{d:mul}"
@@ -114,10 +125,9 @@ multiplication separator between a value and its label:
 
 ```
 
-It left our colon alone. Because we marked that fragment as a separator, the
-engine knows it is ours and does not overwrite it. Had we marked it as
-content, a request for `mul` would have pushed a `*` into the middle of the
-time.
+It left the colon alone. A fragment marked `"sep"` is the type's own
+separator, so `mul` does not replace it. Marked as content instead, the same
+request would have printed `3 * 07`.
 
 ## Step 5: look at what the engine sees
 
@@ -140,9 +150,8 @@ tuple.
 A `Duration` type that renders as text, HTML and LaTeX, from one method. If
 you re-run the session from the top you will get the same output every time.
 
-The next tutorial teaches the other half of the system: adding a word to the
-format-spec vocabulary, so `Duration` can answer to a spec that did not exist
-when we wrote it.
+The next tutorial adds a word to the format-spec vocabulary itself, so
+`Duration` can answer to `f"{d:total}"` — a spec that does not exist yet.
 
 - Next: [Teach the grammar a new word](teach-the-grammar-a-new-word.md)
 - The tasks in this tutorial, written for someone who already knows they want

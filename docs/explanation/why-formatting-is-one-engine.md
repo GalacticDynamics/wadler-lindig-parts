@@ -227,32 +227,47 @@ between distributions now. Each has a test pinning it, for that reason.
 
 ## Why the layout is not ours
 
-`parts_to_doc` builds a `wadler_lindig` document rather than a string, and
-everything that happens after that belongs to `wadler_lindig`: where a line
-breaks, how a continuation is indented, how a value nests inside a larger
-document. This package contributes the fragments and their roles, and then
-gets out of the way.
+`parts_to_doc` returns a `wadler_lindig` document, not a string. Where a line
+breaks, how far a continuation is indented, and how a value nests inside a
+larger value are decided by `wadler_lindig` afterwards. This package decides
+only what the fragments are and what roles they carry.
 
-That is a deliberate refusal to own a hard problem. Line breaking that stays
-correct under nesting is the whole subject of the Wadler–Lindig algorithm, and
-a renderer that re-implemented it would be re-implementing it badly, per
-markup, four times over. Emitting a document instead means every markup
-inherits breaking and nesting at once — including markups registered later by
-someone who has never read this page.
+The reason is that breaking lines well is harder than it looks. Given a nested
+structure, you want the outermost group that still fits on one line to stay on
+one line, and every group containing it to break — which is the problem the
+Wadler–Lindig algorithm solves. Solving it again here would mean solving it
+once per markup, with a separate set of bugs each time.
 
-It also decides a subtler question in the right direction. A markup's wrapper
-text is emitted zero-width, so `<span>` tags reach the output without being
-billed as visible columns. Had layout been ours, that choice would have been
-ours to get wrong; because the document carries it, HTML and plain text break
-at the same place for the same value, which is what makes the three markups
-comparable at all.
+Handing the document over also settles one question that would otherwise be
+easy to get wrong: whether a markup's wrapper text costs columns. It does not.
+The `<span>` tags are emitted zero-width, so the same value breaks in the same
+place no matter which markup asked for it:
 
-The cost is that the breaking behaviour is not tunable from here. A payload is
-atomic, so no width narrower than the payload will split it, and a consumer
-who wants different behaviour has to change what fragments they emit rather
-than how those fragments are laid out. In practice that constraint has been
-the useful kind: it pushes the decision back to the type, which is where the
-meaning is.
+```python
+>>> from wadler_lindig_parts import doc_to_str, parts_to_doc, pparts
+>>> from wadler_lindig_parts.examples import Term
 
-For the observable behaviour rather than the argument, see
+>>> t = Term([1.0, 2.0, 3.0], "metres")
+>>> print(doc_to_str(parts_to_doc(pparts(t), markup="text"), 20))
+[1.0, 2.0, 3.0] *
+  metres
+>>> parts = pparts(t, markup="html")
+>>> print(doc_to_str(parts_to_doc(parts, markup="html"), 20))
+<span>[1.0, 2.0, 3.0]</span> *
+  <span>metres</span>
+
+```
+
+The HTML line is 50 characters wide and the text line is 24, but both break
+after the `*` and indent `metres` by two, because only the visible content was
+measured against the width of 20. So you can reason about where a value will
+wrap without knowing which markup will render it — and a markup added later
+gets that behaviour without asking for it.
+
+What this costs is control. You cannot tune the breaking from this side: a
+payload is atomic, so no width narrower than `[1.0, 2.0, 3.0]` will split it,
+and a library that wants to break inside its own values has to emit more
+fragments rather than request a different layout.
+
+For the behaviour on its own, without the argument, see
 [`width` and `indent`](../reference/axes.md#width).

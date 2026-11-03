@@ -5,12 +5,12 @@ description: Register pparts and inherit ReprMixin so your type renders in every
 
 # How to make a type formattable
 
-This guide shows you how to give your own type `repr`, `str`, `__format__`,
-the Jupyter representations and `__pdoc__` from a single `pparts` method.
+One `pparts` method gives your type `repr`, `str`, `__format__`, the Jupyter
+representations and `__pdoc__`.
 
-New to the package? Start with
+New to the package?
 [Make your first formattable type](../tutorials/your-first-formattable-type.md)
-instead — it covers the same ground at a slower pace.
+builds one from scratch instead of assuming you know the pieces.
 
 ## Register `pparts` and inherit `ReprMixin`
 

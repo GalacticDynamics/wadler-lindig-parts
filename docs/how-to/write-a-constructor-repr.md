@@ -5,12 +5,12 @@ description: Give a non-dataclass type a call-layout repr by implementing __pdoc
 
 # How to write a constructor-form repr
 
-This guide shows you how to control what `call` layout prints for your type.
+`call` layout prints how to *rebuild* a value. It does not go through
+`pparts` at all — it hands off to the object's own `__pdoc__`.
 
-`call` renders how to *rebuild* a value, and it does not go through `pparts` —
-it hands off to the object's own `__pdoc__`. A dataclass already gets a usable
-one from `wadler_lindig` for free, so reach for this only when your type is
-not a dataclass, or when the free one is not the constructor call you want.
+A dataclass already gets a working `__pdoc__` from `wadler_lindig`, so you
+need this only when your type is not a dataclass, or when the one you get for
+free is not the constructor call you want.
 
 For the `product` side — the fragments every markup is built from — see
 [How to make a type formattable](make-a-type-formattable.md). The two are
@@ -47,7 +47,8 @@ keep working:
 `named_objs` renders each value with the same settings as the enclosing
 document, which is why `**kwargs` is forwarded rather than dropped.
 
-Because the result is a document and not a string, breaking comes for free:
+The result is a document rather than a string, so it breaks under a narrow
+width without your doing anything:
 
 ```python
 >>> print(pspec(iv, "call", width=16))
@@ -60,8 +61,8 @@ Interval(
 ## If you only want to override sometimes
 
 Return `None` and the default rendering is used instead. Anything that is not
-an `AbstractDoc` is ignored, so this is a safe fall-through rather than a
-special case:
+an `AbstractDoc` is ignored, so a method that returns early is handled by the
+same rule — there is no separate opt-out:
 
 ```python
 >>> class Maybe:

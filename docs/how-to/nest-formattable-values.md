@@ -5,8 +5,8 @@ description: Forward **kw from your pparts so axes reach the values inside your 
 
 # How to nest formattable values
 
-This guide shows you how to make a type whose fields are themselves
-formattable honour specs it has never heard of.
+When your type holds other formattable values, a spec aimed at those values
+has to reach them. It does that only if you forward `**kw`.
 
 ## Accept `**kw` and forward it
 
@@ -59,9 +59,10 @@ Markup reaches them the same way:
 
 ## If you drop `**kw`
 
-The nested values fall back to defaults and silently stop honouring the spec.
-Nothing raises — the fragments are still valid — so this is worth a test in
-your own suite rather than a review comment.
+The nested values fall back to their defaults. Nothing raises, because the
+fragments are still well formed — `pspec(iv, ".2f")` would simply print
+`[0.0 x, 1.0 x)` and nobody would see a problem. Assert on a nested spec in
+your own tests; a reviewer will not catch it.
 
 ## If a nested field is not formattable
 

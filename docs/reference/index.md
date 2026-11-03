@@ -5,11 +5,12 @@ description: The spec grammar, the axes, the registration rules, and every publi
 
 # Reference
 
-Descriptions of the grammar and the public surface, for looking things up.
+What the grammar accepts and what every public name does.
 
-These pages describe; they do not instruct. For steps, see the
-[how-to guides](../how-to/index.md); for the reasoning behind any of it, see
-[the explanation](../explanation/index.md).
+These pages answer "what is it?" rather than "how do I?". If you are trying to
+get something done, the [how-to guides](../how-to/index.md) are the shorter
+route; if you want to know why it works this way,
+[the explanation](../explanation/index.md) is where the reasoning lives.
 
 - [Format spec grammar](spec-grammar.md) — the shape of a spec, the scan rule,
   qualified keywords, and the trailing value spec.

@@ -69,9 +69,10 @@ the engine made of our word:
 
 ```
 
-It did not recognise `total` as a keyword, so it took it as a *format spec for
-the values inside* — which our fragments ignore. That is what an unregistered
-word is: not an error, just text that lands somewhere harmless.
+It did not recognise `total` as a keyword, so it fell through to the last
+thing a spec can be: a format spec for the values inside. It landed on the
+`value` axis, where our plain-text fragments ignore it. An unregistered word
+is not an error; it is just a word nothing is listening for.
 
 ## Step 3: register the word
 
@@ -107,8 +108,8 @@ grammar.
 
 ## Step 4: the part we did not write
 
-Here is the payoff. We taught the grammar one word. We said nothing about
-HTML, and nothing about LaTeX:
+We taught the grammar one word. We said nothing about HTML, and nothing about
+LaTeX — but both now accept it:
 
 ```python
 >>> f"{d:html-total}"
@@ -118,8 +119,8 @@ HTML, and nothing about LaTeX:
 
 ```
 
-Both work. Our new word composed with markups that already existed, and it
-will compose with any markup added later by anyone.
+Both work. The word we added combines with markups that already existed, and
+with any markup registered after it.
 
 Notice that `s` did not get a `<span>` in the HTML — we marked it `"sep"` in
 step 1, and the markup treats separators differently from content, just as it
@@ -143,9 +144,9 @@ And the plain form still behaves:
 
 ## Step 5: put the registry back
 
-One last thing. The registry is process-wide — our word is visible to every
-piece of code in this session, which is the point of a shared grammar, and
-also why a tutorial should tidy up after itself:
+One last thing. The registry is process-wide: `total` is now a word for every
+piece of code in this session, not just for our `Duration`. A library would
+want exactly that. A tutorial should hand the session back as it found it:
 
 ```python
 >>> from wadler_lindig_parts import unregister_axis, AXES
@@ -166,11 +167,11 @@ Back to the six the engine ships with. And `total` is just text again:
 
 ## What we built
 
-A word that did not exist, which now composes with every markup in the
-grammar — and which we removed again in one line.
+A format spec the package had never heard of, which worked with every markup
+it already had — from one `Axis` and one extra branch in `pparts`.
 
-In a real library you would register your axes at import, once, rather than
-unregistering them; the tidy-up above is because we are sharing a session.
+We unregistered it only because this was a shared session. A real library
+registers its axes once, when it is imported, and leaves them there.
 
 - The same task without the narration:
   [How to add an axis](../how-to/add-an-axis.md)

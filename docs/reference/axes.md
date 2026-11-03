@@ -53,8 +53,8 @@ renders how to *rebuild* it, by handing off to the object's own `__pdoc__`.
 
 ```
 
-`Point` registers no `pparts` and still renders under `call`: a dataclass gets
-a usable `__pdoc__` from `wadler_lindig` for free.
+`Point` registers no `pparts` and still renders under `call`: `wadler_lindig`
+supplies a `__pdoc__` for any dataclass.
 
 ## `markup`
 
