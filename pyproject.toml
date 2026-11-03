@@ -60,7 +60,24 @@ docs = [
 # gate, so `pre-commit` itself is the runner here. quax uses `prek`, its
 # faster drop-in; following quax there would leave the constitution naming a
 # command that does not exist in this environment.
-lint  = ["pre-commit>=4", "ruff>=0.15.9"]
+#
+# 3.11+ for the same reason as the docs group, arrived at from the other
+# direction. `pre-commit` pulls `virtualenv`, which pulls `filelock`;
+# `filelock` dropped 3.10 at 4.2.0, and 4.2.1 is the first version patched
+# against seventeen advisories that all end at `<= 4.2.0`. So the 3.10 split
+# could only ever resolve a vulnerable `filelock` -- there is no patched
+# release for that interpreter. Marking the group removes it from the lock
+# rather than annotating around it.
+#
+# The floor this moves is the *contributor's*, not the consumer's: 3.10 stays
+# fully supported and tested for anyone installing this package. What a 3.10
+# developer loses is `pre-commit` from `uv sync`, exactly as they already lose
+# the docs toolchain -- and CI runs the lint gate on the newest interpreter
+# regardless.
+lint = [
+  'pre-commit>=4; python_version >= "3.11"',
+  'ruff>=0.15.9; python_version >= "3.11"',
+]
 tests = ["pytest>=8.3.5", "sybil>=9"]
 
 # An allowlist, not a denylist. Without this section hatchling falls back to
