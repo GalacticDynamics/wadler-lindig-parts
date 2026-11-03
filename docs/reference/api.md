@@ -1,9 +1,18 @@
-# API reference
+---
+title: API
+description: Every public name in wadler_lindig_parts, generated from its docstrings.
+---
+
+# API
 
 The public surface is the top-level `wadler_lindig_parts` module: every name
 below is reachable as `wadler_lindig_parts.<name>`. There is no
 private-but-documented tier — a name a consumer needs is public, and a name
 that is public is tested.
+
+For the grammar these functions read, see
+[Format spec grammar](spec-grammar.md); for the vocabulary, see
+[Axes, layouts and markups](axes.md).
 
 ## The extension point
 
@@ -83,6 +92,7 @@ that is public is tested.
 
 The types the documentation demonstrates on. They exist because an example may
 not import a consumer: `unxt` depends on this package, so a doctest reaching
-for `unxt.Quantity` would be circular.
+for `unxt.Quantity` would be circular. `Version` and `Term` register `pparts`;
+`Point` deliberately does not.
 
 ::: wadler_lindig_parts.examples

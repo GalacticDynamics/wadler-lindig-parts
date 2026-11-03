@@ -25,11 +25,12 @@ format spec — including axes added later by somebody else.
 ...         PPart("minor", str(obj.minor)),
 ...     )
 
->>> Version(2, 1)
+>>> v = Version(2, 1)
+>>> v
 2.1
->>> f"{Version(2, 1):html}"
+>>> f"{v:html}"
 '<span>2</span>.<span>1</span>'
->>> f"{Version(2, 1):latex}"
+>>> f"{v:latex}"
 '$2.1$'
 
 ```
@@ -99,5 +100,13 @@ form from the start.
 ## Documentation
 
 <https://galacticdynamics.github.io/wadler-lindig-parts>
+
+New to the package? [Make your first formattable
+type](https://galacticdynamics.github.io/wadler-lindig-parts/tutorials/your-first-formattable-type/)
+builds one from nothing in a few minutes. Already building something? The
+[how-to guides](https://galacticdynamics.github.io/wadler-lindig-parts/how-to/)
+are task-sized, and the
+[reference](https://galacticdynamics.github.io/wadler-lindig-parts/reference/)
+has the spec grammar and every public name.
 
 [wl]: https://github.com/patrick-kidger/wadler-lindig

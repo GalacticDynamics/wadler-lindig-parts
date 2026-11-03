@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moved</title>
+<link rel="canonical" href="../reference/api/">
+<meta name="robots" content="noindex">
+<noscript><meta http-equiv="refresh" content="0; url=/reference/api/"></noscript>
+<script>
+// A split page sends different anchors to different destinations, so the fragment decides
+// where we land. Deep links carry anchors; dropping them strands the reader at the top of
+// a long page with no idea why.
+var DEFAULT = "../reference/api/";
+var ANCHORS = {};
+var hash = window.location.hash.replace(/^#/, "");
+var target = (hash && Object.prototype.hasOwnProperty.call(ANCHORS, hash))
+  ? ANCHORS[hash]
+  : (hash && DEFAULT.indexOf("#") === -1 ? DEFAULT + "#" + hash : DEFAULT);
+window.location.replace(target);
+</script>
+</head>
+<body>
+<p>This page has moved to <a href="../reference/api/">the API reference</a>.</p>
+</body>
+</html>
