@@ -100,4 +100,12 @@ form from the start.
 
 <https://galacticdynamics.github.io/wadler-lindig-parts>
 
+New to the package? [Make your first formattable
+type](https://galacticdynamics.github.io/wadler-lindig-parts/tutorials/your-first-formattable-type/)
+builds one from nothing in a few minutes. Already building something? The
+[how-to guides](https://galacticdynamics.github.io/wadler-lindig-parts/how-to/)
+are task-sized, and the
+[reference](https://galacticdynamics.github.io/wadler-lindig-parts/reference/)
+has the spec grammar and every public name.
+
 [wl]: https://github.com/patrick-kidger/wadler-lindig

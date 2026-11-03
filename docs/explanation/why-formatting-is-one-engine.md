@@ -6,9 +6,10 @@ vocabulary and one entry point, and most of them share the renderer as well.
 The constructor form `repr` produces is the exception, for reasons below. This
 page is about why that is worth doing and what it cost.
 
-For the spec vocabulary itself, see [the grammar](../index.md). To make a type
-of your own formattable, see
-[How to make your own type formattable](../how-to/make-a-type-formattable.md).
+For the spec vocabulary itself, see
+[Format spec grammar](../reference/spec-grammar.md). To make a type of your
+own formattable, see
+[How to make a type formattable](../how-to/make-a-type-formattable.md).
 
 ## Why one renderer and not four
 
@@ -222,3 +223,35 @@ mechanism but the status of three rules: the registry's collision behaviour,
 the refusal of a malformed markup row, and the moment `__repr_spec__` is
 resolved were implementation details inside one package, and are contract
 between distributions now. Each has a test pinning it, for that reason.
+
+## Why the layout is not ours
+
+`parts_to_doc` builds a `wadler_lindig` document rather than a string, and
+everything that happens after that belongs to `wadler_lindig`: where a line
+breaks, how a continuation is indented, how a value nests inside a larger
+document. This package contributes the fragments and their roles, and then
+gets out of the way.
+
+That is a deliberate refusal to own a hard problem. Line breaking that stays
+correct under nesting is the whole subject of the Wadler–Lindig algorithm, and
+a renderer that re-implemented it would be re-implementing it badly, per
+markup, four times over. Emitting a document instead means every markup
+inherits breaking and nesting at once — including markups registered later by
+someone who has never read this page.
+
+It also decides a subtler question in the right direction. A markup's wrapper
+text is emitted zero-width, so `<span>` tags reach the output without being
+billed as visible columns. Had layout been ours, that choice would have been
+ours to get wrong; because the document carries it, HTML and plain text break
+at the same place for the same value, which is what makes the three markups
+comparable at all.
+
+The cost is that the breaking behaviour is not tunable from here. A payload is
+atomic, so no width narrower than the payload will split it, and a consumer
+who wants different behaviour has to change what fragments they emit rather
+than how those fragments are laid out. In practice that constraint has been
+the useful kind: it pushes the decision back to the type, which is where the
+meaning is.
+
+For the observable behaviour rather than the argument, see
+[`width` and `indent`](../reference/axes.md#width).

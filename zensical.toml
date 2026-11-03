@@ -7,25 +7,50 @@ site_url         = "https://galacticdynamics.github.io/wadler-lindig-parts"
 repo_name = "GalacticDynamics/wadler-lindig-parts"
 repo_url  = "https://github.com/GalacticDynamics/wadler-lindig-parts"
 
+# Diátaxis order: learning, then doing, then looking up, then understanding.
+# Each section's index.md comes first in its array, which is what
+# `navigation.indexes` renders as the section landing page.
 nav = [
   "index.md",
-  { "How-to" = [
-    "how-to/make-a-type-formattable.md",
+  { "Tutorials" = [
+    "tutorials/index.md",
+    "tutorials/your-first-formattable-type.md",
+    "tutorials/teach-the-grammar-a-new-word.md",
   ] },
-  { "Explanation" = [
-    "explanation/why-formatting-is-one-engine.md",
+  { "How-to guides" = [
+    "how-to/index.md",
+    "how-to/make-a-type-formattable.md",
+    "how-to/nest-formattable-values.md",
+    "how-to/add-an-axis.md",
+    "how-to/add-a-markup.md",
   ] },
   { "Reference" = [
-    "api.md",
+    "reference/index.md",
+    "reference/spec-grammar.md",
+    "reference/axes.md",
+    "reference/registration-rules.md",
+    "reference/api.md",
+  ] },
+  { "Explanation" = [
+    "explanation/index.md",
+    "explanation/why-formatting-is-one-engine.md",
   ] },
 ]
 
 [project.theme]
 features = [
+  "navigation.indexes",  # a section's index.md becomes its landing page
   "navigation.sections", # sections appear in the left-hand navigation
-  "toc.integrate",       # table of contents on the left, not separately on the right
+  "navigation.tabs",     # the four modes as top-level tabs
+  "navigation.path",     # breadcrumbs, so a reader from search sees which mode they are in
+  "navigation.top",      # back-to-top button
+  "content.code.copy",   # copy button on every example
   "header.autohide",     # header disappears as you scroll
 ]
+# `toc.integrate` was removed here deliberately: it is incompatible with
+# `navigation.indexes`, and section landing pages are load-bearing for a
+# Diataxis tree -- they are what tells a reader which of the four modes they
+# have landed in.
 
 [project.theme.icon]
 logo = "material/format-text"
@@ -47,12 +72,17 @@ scheme      = "slate"
 toggle.icon = "material/weather-sunny"
 toggle.name = "Switch to light mode"
 
+# Declaring any extension replaces Zensical's defaults rather than adding to
+# them, so everything the pages use is listed here explicitly.
 [project.markdown_extensions]
 admonition                      = {}
+attr_list                       = {}
+md_in_html                      = {}
 pymdownx.details                = {}
 pymdownx.snippets.base_path     = "docs"
 pymdownx.superfences            = {}
 pymdownx.tabbed.alternate_style = true
+tables                          = {}
 toc.permalink                   = "¤"
 toc.toc_depth                   = 4
 
