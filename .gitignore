@@ -8,3 +8,6 @@ site/
 .ruff_cache/
 .idea
 .DS_Store
+
+# graphify's build output; the graph is rebuilt from the sources it indexes.
+graphify-out/
