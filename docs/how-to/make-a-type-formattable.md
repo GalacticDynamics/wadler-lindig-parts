@@ -39,9 +39,10 @@ mixin's `__repr__`.
 ...         PPart("minor", str(obj.minor)),
 ...     )
 
->>> Version(1, 2)
+>>> v = Version(1, 2)
+>>> v
 1.2
->>> f"{Version(1, 2):html}"
+>>> f"{v:html}"
 '<span>1</span>.<span>2</span>'
 
 ```
@@ -50,7 +51,7 @@ The separator is its own fragment, which is why `mul` renders `1.2` rather
 than `1 * 2`:
 
 ```python
->>> f"{Version(1, 2):mul}"
+>>> f"{v:mul}"
 '1.2'
 
 ```

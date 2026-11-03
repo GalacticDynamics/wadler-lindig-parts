@@ -25,11 +25,12 @@ format spec — including axes added later by somebody else.
 ...         PPart("minor", str(obj.minor)),
 ...     )
 
->>> Version(2, 1)
+>>> v = Version(2, 1)
+>>> v
 2.1
->>> f"{Version(2, 1):html}"
+>>> f"{v:html}"
 '<span>2</span>.<span>1</span>'
->>> f"{Version(2, 1):latex}"
+>>> f"{v:latex}"
 '$2.1$'
 
 ```

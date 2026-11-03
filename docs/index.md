@@ -15,11 +15,12 @@ every markup, including ones added later by somebody else.
 ```python
 >>> from wadler_lindig_parts.examples import Version
 
->>> Version(2, 1)
+>>> v = Version(2, 1)
+>>> v
 2.1
->>> f"{Version(2, 1):html}"
+>>> f"{v:html}"
 '<span>2</span>.<span>1</span>'
->>> f"{Version(2, 1):latex}"
+>>> f"{v:latex}"
 '$2.1$'
 
 ```
@@ -66,11 +67,12 @@ ordinary Python format spec:
 ```python
 >>> from wadler_lindig_parts.examples import Term
 
->>> f"{Term(2.0, 'x'):mul}"
+>>> t = Term(2.0, "x")
+>>> f"{t:mul}"
 '2.0 * x'
->>> f"{Term(2.0, 'x'):html-mul}"
+>>> f"{t:html-mul}"
 '<span>2.0</span> * <span>x</span>'
->>> f"{Term(2.0, 'x'):mul-.3f}"
+>>> f"{t:mul-.3f}"
 '2.000 * x'
 
 ```

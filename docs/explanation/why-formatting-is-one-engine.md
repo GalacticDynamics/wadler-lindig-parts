@@ -29,7 +29,8 @@ type and it gets every markup, including ones added later by somebody else.
 ```python
 >>> from wadler_lindig_parts.examples import Version
 
->>> repr(Version(2, 1)), f"{Version(2, 1):html}", f"{Version(2, 1):latex}"
+>>> v = Version(2, 1)
+>>> repr(v), f"{v:html}", f"{v:latex}"
 ('2.1', '<span>2</span>.<span>1</span>', '$2.1$')
 
 ```
@@ -165,9 +166,9 @@ still renders `2.1`, because a version's own `.` separator is a `sep` fragment
 and the `sep` axis leaves those alone:
 
 ```python
->>> f"{Version(2, 1):mul}"
+>>> f"{v:mul}"
 '2.1'
->>> f"{Version(2, 1):bare}"
+>>> f"{v:bare}"
 '2.1'
 
 ```
@@ -188,7 +189,7 @@ the output moves. `inert_axes` does exactly that:
 >>> from wadler_lindig_parts import inert_axes, parse_spec, render
 
 >>> spec = parse_spec("mul")
->>> inert_axes(Version(2, 1), spec, render(Version(2, 1), spec))
+>>> inert_axes(v, spec, render(v, spec))
 ['sep']
 
 ```

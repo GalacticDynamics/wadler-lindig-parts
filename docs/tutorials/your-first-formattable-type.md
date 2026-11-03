@@ -61,10 +61,11 @@ Register a `pparts` method. It returns the pieces of the value, each with a
 Notice the third argument on the middle fragment. `"sep"` marks the colon as a
 *separator* rather than content — we will see that pay off in step 4.
 
-Now ask for a duration:
+Now make one and look at it:
 
 ```python
->>> Duration(3, 7)
+>>> d = Duration(3, 7)
+>>> d
 3:07
 
 ```
@@ -72,7 +73,7 @@ Now ask for a duration:
 There it is. `str` gives the same thing:
 
 ```python
->>> print(Duration(3, 7))
+>>> print(d)
 3:07
 
 ```
@@ -83,7 +84,7 @@ We described the pieces. We never said anything about HTML. Ask for it
 anyway:
 
 ```python
->>> f"{Duration(3, 7):html}"
+>>> f"{d:html}"
 '<span>3</span>:<span>07</span>'
 
 ```
@@ -94,7 +95,7 @@ did not. Our roles survived into the output.
 LaTeX works too, and we did not write that either:
 
 ```python
->>> f"{Duration(3, 7):latex}"
+>>> f"{d:latex}"
 '$3:07$'
 
 ```
@@ -108,7 +109,7 @@ Let's check what `"sep"` bought us. The `mul` keyword asks for a
 multiplication separator between a value and its label:
 
 ```python
->>> f"{Duration(3, 7):mul}"
+>>> f"{d:mul}"
 '3:07'
 
 ```
@@ -123,7 +124,7 @@ time.
 The fragments themselves are plain data, and we can look at them:
 
 ```python
->>> pparts(Duration(3, 7))
+>>> pparts(d)
 (PPart(role='minutes', text='3', kind='content', doc=None),
  PPart(role='colon', text=':', kind='sep', doc=None),
  PPart(role='seconds', text='07', kind='content', doc=None))
