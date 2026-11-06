@@ -109,7 +109,8 @@ Span(lo=0.0, hi=1.0)
 
 ## If your type is a dataclass
 
-Do nothing. `wadler_lindig` already produces the constructor form:
+Do nothing. `wadler_lindig` already produces the constructor form, and a
+dataclass using `ReprMixin` with a `call` spec gets the same:
 
 ```python
 >>> from wadler_lindig_parts.examples import Point

@@ -104,7 +104,7 @@ def test_pformat_matches_repr_for_product_spec():
 
 
 @pytest.mark.parametrize("spec", ["product", "call"])
-def test_missing_pparts_is_a_clear_error_not_recursion(spec):
+def test_missing_pparts_raises_on_every_route_that_needs_it(spec):
     @dataclasses.dataclass(repr=False)
     class N(ReprMixin):
         """Forgot to register pparts."""
@@ -113,7 +113,15 @@ def test_missing_pparts_is_a_clear_error_not_recursion(spec):
         __repr_spec__ = spec
 
     msg = "N subclasses ReprMixin but registers no pparts"
-    for call in (repr, str, lambda o: f"{o:mul}", wl.pformat):
+    # A ``call`` dataclass renders its fields without any fragments, so only
+    # the fragment routes need the missing registration.
+    calls = [lambda o: f"{o:mul}"]
+    if spec == "call":
+        for call in (repr, str, wl.pformat):
+            assert call(N(1)).endswith(".N(x=1)")
+    else:
+        calls += [repr, str, wl.pformat]
+    for call in calls:
         with pytest.raises(TypeError, match=msg):
             call(N(1))
 
@@ -184,3 +192,112 @@ def test_engine_and_generic_import_without_numpy_or_jax():
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_call_dataclass_can_build_fragments_from_its_own_pdoc():
+    """A ``call`` dataclass's fragments may reuse wadler-lindig's field layout.
+
+    Before the mixin stepped aside under ``call``, `wl.pdoc` here reached the
+    mixin's ``__pdoc__``, which asked `pparts` again, without end.
+    """
+
+    @dataclasses.dataclass(repr=False)
+    class Box(ReprMixin):
+        __repr_spec__ = "call"
+        a: int
+        b: str
+
+    @pparts.dispatch
+    def _(obj: Box, /, *, markup="text", **kw):
+        return (PPart("value", wl.pformat(obj, width=10**9)),)
+
+    box = Box(1, "<x>")
+    assert repr(box).endswith(".Box(a=1, b='<x>')")
+    assert f"{box:html}".endswith(".Box(a=1, b=&#x27;&lt;x&gt;&#x27;)</span>")
+
+
+def test_repr_html_and_latex_are_flat():
+    """HTML collapses whitespace and LaTeX math ignores newlines: no breaks."""
+
+    @dataclasses.dataclass(repr=False)
+    class Long(ReprMixin):
+        n: int
+
+    @pparts.dispatch
+    def _(obj: Long, /, *, markup="text", **kw):
+        parts = []
+        for i in range(obj.n):
+            parts += [PPart(f"p{i}", "word" * 5), PPart("mul", " * ", "sep")]
+        return tuple(parts[:-1])
+
+    long = Long(10)
+    assert "\n" in repr(long)
+    html, latex = long._repr_html_(), long._repr_latex_()
+    assert html is not None
+    assert latex is not None
+    assert "\n" not in html
+    assert "\n" not in latex
+
+
+@pytest.mark.parametrize("registered", [True, False])
+def test_call_types_show_their_repr_in_a_notebook(registered):
+    """A constructor expression has no markup form, so the hooks step aside.
+
+    Without this a ``call`` dataclass with no `pparts` raised in both hooks,
+    and one with `pparts` showed fragments in a notebook but a constructor in
+    a terminal.
+    """
+
+    @dataclasses.dataclass(repr=False)
+    class Pair(ReprMixin):
+        __repr_spec__ = "call"
+        a: int
+
+    if registered:
+
+        @pparts.dispatch
+        def _(obj: Pair, /, *, markup="text", **kw):
+            return (PPart("a", str(obj.a)),)
+
+    assert Pair(1)._repr_html_() is None
+    assert Pair(1)._repr_latex_() is None
+
+
+def test_notebook_hooks_follow_the_class_spec():
+    """A ``mul`` type keeps its operator in a notebook, as ``repr`` does."""
+    from wadler_lindig_parts.examples import Term
+
+    t = Term([1.0, 2.0], "x")
+    assert repr(t) == "[1.0, 2.0] * x"
+    assert t._repr_html_() == "<span>[1.0, 2.0]</span> * <span>x</span>"
+
+
+def test_call_type_without_a_constructor_keeps_its_markup():
+    """No dataclass and no ``__pdoc__``: ``repr`` is fragments, so is the HTML."""
+
+    class Bare(ReprMixin):
+        __repr_spec__ = "call"
+
+        def __init__(self, a):
+            self.a = a
+
+    @pparts.dispatch
+    def _(obj: Bare, /, *, markup="text", **kw):
+        return (PPart("a", str(obj.a)),)
+
+    assert repr(Bare(1)) == "1"
+    assert Bare(1)._repr_html_() == "<span>1</span>"
+
+
+def test_call_type_with_its_own_pdoc_shows_its_repr_in_a_notebook():
+    class Own(ReprMixin):
+        __repr_spec__ = "call"
+
+        def __init__(self, a):
+            self.a = a
+
+        def __pdoc__(self, **kw):
+            return wl.TextDoc(f"Own({self.a})")
+
+    assert repr(Own(1)) == "Own(1)"
+    assert Own(1)._repr_html_() is None
