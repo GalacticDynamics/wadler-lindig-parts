@@ -58,6 +58,7 @@ __all__ = (
     "register_alias",
     "register_axis",
     "render",
+    "render_options",
     "unregister_alias",
     "unregister_axis",
     "unwrap_math",
@@ -1055,11 +1056,10 @@ def render(
     one word must mean one thing for every type, but still need a route
     through so a caller's configuration can drive them.
 
-    A type can supply its own through ``__repr_options__(self, spec)``, which
-    returns a mapping of them for the spec being rendered; ``extra`` wins on a
-    clash. It gets the spec because the right options can depend on it: a
-    wadler-lindig ``custom=`` hook that shortens arrays should stay out of a
-    spec that asks to see them in full.
+    Under ``call`` layout a type can also supply its own, by registering
+    `render_options`. They are merged in a fixed order, each overriding the
+    one before: the keyword arguments the spec's axes produce, then
+    `render_options`, then ``extra``.
 
     Examples
     --------
@@ -1079,16 +1079,46 @@ def render(
     layout = spec["layout"]
     width = w if (w := spec.get("width")) is not None else width
     indent = i if (i := spec.get("indent")) is not None else indent
-    extra = {**_repr_options(obj, spec), **extra}
-    return _LAYOUTS[layout](
-        obj, spec, width=width, indent=indent, **_layout_kwargs(spec, layout), **extra
-    )
+    kw: dict[str, Any] = {
+        "width": width,
+        "indent": indent,
+        **_layout_kwargs(spec, layout),
+    }
+    if layout == "call":
+        kw.update(render_options(obj, spec))
+    kw.update(extra)
+    return _LAYOUTS[layout](obj, spec, **kw)
 
 
-def _repr_options(obj: Any, spec: Spec, /) -> Mapping[str, Any]:
-    """Return ``obj``'s own renderer options for ``spec``, or none."""
-    hook = getattr(type(obj), "__repr_options__", None)
-    return {} if hook is None else hook(obj, spec)
+@dispatch.abstract
+def render_options(obj: Any, spec: Any, /) -> Mapping[str, Any]:
+    """Return a type's own `wadler_lindig.pformat` options for ``spec``.
+
+    The extension point for ``call`` layout's renderer, as `pparts` is for
+    ``product``. Register a method for your type to pass options that are not
+    spec words, such as a ``custom=`` hook that lays out a value type its own
+    way. It receives the spec because the right options can depend on it:
+    wadler-lindig calls ``custom=`` on every object, whatever ``short_arrays``
+    says, so a hook that shortens arrays has to stay out of ``array``.
+
+    `render` asks for them, so ``repr``, ``str`` and ``format`` under ``call``
+    all get them. A ``wl.pformat`` call that reaches the object from outside
+    (as a field of another object) uses the outer call's options instead,
+    since a ``__pdoc__`` cannot change the options it was called with.
+    Unknown keys are not checked: wadler-lindig forwards them to every
+    ``__pdoc__`` it calls.
+    """
+    raise NotImplementedError  # pragma: no cover
+
+
+@dispatch  # type: ignore[no-redef]
+def render_options(obj: Any, spec: Any, /) -> Mapping[str, Any]:  # noqa: ARG001
+    """No options: the default for a type that registers none.
+
+    ``spec`` is typed `Any`, not `Spec`, so that a method registered as
+    ``(obj: MyType, spec, /)`` is strictly more specific than this one.
+    """
+    return MappingProxyType({})
 
 
 def _render_call(obj: Any, spec: Spec, /, *, width: int, indent: int, **kw: Any) -> str:
@@ -1329,17 +1359,6 @@ class ReprMixin:
     __repr_spec__: ClassVar[str] = "product"
     _repr_spec_parsed: ClassVar[Spec]
 
-    def __repr_options__(self, spec: Spec, /) -> Mapping[str, Any]:
-        """Return renderer options for ``spec``; none by default.
-
-        Override it to pass `render` options that are not grammar axes, such
-        as a wadler-lindig ``custom=`` hook. ``repr``, ``str``, ``format`` and
-        the Jupyter hooks all ask it. An object nested inside another one's
-        `wadler_lindig.pformat` is laid out with the outer object's options.
-        """
-        del spec
-        return MappingProxyType({})
-
     def __init_subclass__(cls, **kw: Any) -> None:
         super().__init_subclass__(**kw)
         parsed = parse_spec(cls.__repr_spec__)
@@ -1365,8 +1384,7 @@ class ReprMixin:
         layout = _layout_kwargs(self._repr_spec_parsed, "product")
         layout.pop("markup", None)
         sep = layout.pop("sep", None)
-        options = _repr_options(self, self._repr_spec_parsed)
-        parts = pparts(self, markup=markup, **{**layout, **options})
+        parts = pparts(self, markup=markup, **layout)
         return parts_to_markup(parts, markup=markup, sep=sep)
 
     def _repr_is_constructor(self) -> bool:

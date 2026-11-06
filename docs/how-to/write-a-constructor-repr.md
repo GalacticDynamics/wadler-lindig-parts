@@ -110,12 +110,14 @@ Span(lo=0.0, hi=1.0)
 ## If the renderer needs options of its own
 
 `wadler_lindig.pformat` takes options that are not spec words, such as a
-`custom=` hook that lays out a value type its own way. Return them from
-`__repr_options__`. It receives the spec, so an option can apply to some specs
-and not others; here the short form is kept out of `array`:
+`custom=` hook that lays out a value type its own way. Register them with
+`render_options`, the `call` layout's counterpart to `pparts`. It receives the
+spec, so an option can apply to some specs and not others; here the short form
+is kept out of `array`:
 
 ```python
 >>> import dataclasses
+>>> from wadler_lindig_parts import render_options
 
 >>> class Samples:
 ...     def __repr__(self):
@@ -128,9 +130,10 @@ and not others; here the short form is kept out of `array`:
 ... class Run(ReprMixin):
 ...     __repr_spec__ = "call-type"
 ...     data: Samples
-...
-...     def __repr_options__(self, spec, /):
-...         return {"custom": short_samples} if spec["value"] == "type" else {}
+
+>>> @render_options.dispatch
+... def _(obj: Run, spec, /):
+...     return {"custom": short_samples} if spec["value"] == "type" else {}
 
 >>> Run(Samples())
 Run(data=Samples(3))
@@ -139,8 +142,11 @@ Run(data=Samples(3))
 
 ```
 
-`repr`, `str`, `format` and the Jupyter hooks all ask `__repr_options__`, so
-setting it once covers every route.
+`repr`, `str` and `format` under `call` all use them. Two limits: they do not
+apply to `product` layouts, whose fragments come from `pparts`, and a
+`wl.pformat` that reaches the object from outside, as a field of another
+object, uses that outer call's options. Option names are not checked, because
+wadler-lindig forwards unknown ones to every `__pdoc__` it calls.
 
 ## If your type is a dataclass
 
