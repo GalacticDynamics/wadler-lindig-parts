@@ -20,7 +20,7 @@ spelling, this is what it is for.
 | You have | Use | Read |
 |---|---|---|
 | a type whose repr is fixed text with no parts | nothing here — plain `__repr__` | — |
-| a type with parts, wanting repr, str and markups from one declaration | register `pparts`, inherit `ReprMixin` | [Quickstart](quickstart.md), [make a type formattable](../how-to/make-a-type-formattable.md) |
+| a type with parts, wanting repr, str and markups from one declaration | register `pparts`, route `repr` and `format` | [Quickstart](quickstart.md), [make a type formattable](../how-to/make-a-type-formattable.md) |
 | a container holding other formattable values | forward `**kw` to the children's `pparts` | [nest formattable values](../how-to/nest-formattable-values.md) |
 | a type whose repr should rebuild it — `eval(repr(x)) == x` | `__pdoc__`, reached by the `call` layout | [write a constructor-form repr](../how-to/write-a-constructor-repr.md) |
 | a payload the engine does not know how to render | register `pvalue` for it | [render your own payload type](../how-to/render-your-own-payload-type.md) |

@@ -1,35 +1,42 @@
 ---
 title: How to make a type formattable
-description: Register pparts and inherit ReprMixin so your type renders in every markup.
+description: Register pparts, route repr and format through the engine, and your type renders in every markup.
 ---
 
 # How to make a type formattable
 
-One `pparts` method gives your type `repr`, `str`, `__format__`, the Jupyter
-representations and `__pdoc__`.
+One `pparts` method plus two short dunders give your type `repr`, `str`,
+`__format__` and every markup. A base class is available if you would rather
+not write the dunders, and it is the last section here.
 
 New to the package?
 [Make your first formattable type](../tutorials/your-first-formattable-type.md)
 builds one from scratch instead of assuming you know the pieces.
 
-## Register `pparts` and inherit `ReprMixin`
+## Register `pparts`, then route `repr` and `format`
 
 Return the pieces of the value, each with a role. Mark any piece that is a
 separator rather than content with `kind="sep"`, so the `sep` axis leaves it
 alone.
 
-Use `@dataclass(repr=False)`: the default `repr=True` silently overwrites the
-mixin's `__repr__`.
+`__repr__` names the spec `repr` should use; `__format__` passes the caller's
+spec through. A hand-written `__repr__` in the class body survives
+`@dataclass`, so no `repr=False` is needed here.
 
 ```python
 >>> import dataclasses
->>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+>>> from wadler_lindig_parts import PPart, pparts, pspec
 
->>> @dataclasses.dataclass(repr=False)
-... class Version(ReprMixin):
+>>> @dataclasses.dataclass
+... class Version:
 ...     major: int
 ...     minor: int
-...     __repr_spec__ = "bare"
+...
+...     def __repr__(self) -> str:
+...         return pspec(self, "bare")
+...
+...     def __format__(self, spec: str, /) -> str:
+...         return pspec(self, spec)
 
 >>> @pparts.dispatch
 ... def _(obj: Version, /, *, markup="text", **kw):
@@ -56,18 +63,12 @@ than `1 * 2`:
 
 ```
 
-`__repr_spec__` sets the spec used for `repr`. For what you may put in it, see
+For what you may put in a spec, see
 [Format spec grammar](../reference/spec-grammar.md).
 
-## Register your axes before the class statement
-
-`__repr_spec__` is parsed when the class is created, so a bad spec fails at
-definition rather than on first print, and reassigning it later has no effect.
-
-If your spec names an axis your own package registers, register it **before**
-the `class` statement runs — at import of your package, ahead of the modules
-defining those classes. Across two distributions that is load order between
-them.
+Register `pparts` in the same breath as the two methods. A `repr` that routes
+through the engine before the engine knows what the type is made of falls back
+to rendering with `str`, which calls `repr` again.
 
 ## If your type's repr is a constructor expression
 
@@ -88,6 +89,44 @@ For the full recipe, see
 [How to write a constructor-form repr](write-a-constructor-repr.md); for why
 that one route is not built from fragments, see
 [Why formatting is one engine](../explanation/why-formatting-is-one-engine.md).
+
+## If you would rather not write the two methods
+
+`ReprMixin` supplies them, and adds `__str__`, `_repr_html_`, `_repr_latex_`
+and a `__pdoc__`. The spec moves to a `__repr_spec__` class attribute, and
+`@dataclass(repr=False)` becomes necessary, because a generated `__repr__`
+would silently shadow the inherited one:
+
+```python
+>>> from wadler_lindig_parts import ReprMixin
+
+>>> @dataclasses.dataclass(repr=False)
+... class Release(ReprMixin):
+...     major: int
+...     minor: int
+...     __repr_spec__ = "bare"
+
+>>> @pparts.dispatch
+... def _(obj: Release, /, *, markup="text", **kw):
+...     return (
+...         PPart("major", str(obj.major)),
+...         PPart("dot", ".", "sep"),
+...         PPart("minor", str(obj.minor)),
+...     )
+
+>>> Release(1, 2)
+1.2
+
+```
+
+Two things change beyond the base class. `__repr_spec__` is parsed when the
+*class* is created, so a bad spec fails at definition rather than on first
+print, and reassigning it later has no effect. That also means an axis your
+own package registers has to be registered **before** the `class` statement
+runs — at import of your package, ahead of the modules defining those
+classes, and across two distributions that is load order between them. A spec
+inside `__repr__` is parsed on each call, so it has no such ordering
+requirement.
 
 ## If your type registers no `pparts` at all
 

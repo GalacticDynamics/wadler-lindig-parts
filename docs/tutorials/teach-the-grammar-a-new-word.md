@@ -14,13 +14,18 @@ Start by pasting in the type from last time:
 
 ```python
 >>> import dataclasses
->>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+>>> from wadler_lindig_parts import PPart, pparts, pspec
 
->>> @dataclasses.dataclass(repr=False)
-... class Duration(ReprMixin):
+>>> @dataclasses.dataclass
+... class Duration:
 ...     minutes: int
 ...     seconds: int
-...     __repr_spec__ = "bare"
+...
+...     def __repr__(self) -> str:
+...         return pspec(self, "bare")
+...
+...     def __format__(self, spec: str, /) -> str:
+...         return pspec(self, spec)
 
 ```
 
