@@ -53,8 +53,9 @@ jobs:
       # 2026-11-06: `v0.2.0` was force-updated, run 42186814040 rebuilt the
       # same commit, re-uploaded byte-identical files, and went green on all
       # three jobs while PyPI's upload timestamps did not move -- a release
-      # that reported success and published nothing. research.md R9 has the
-      # rest, including the case that run never reached. PyPI and not
+      # that reported success and published nothing. The record in
+      # `specs/002-tag-derived-version/` has the rest, including the case that
+      # run never reached. PyPI and not
       # TestPyPI: a run that died between the two publish jobs has already
       # filled TestPyPI, and that retry has to get through. A network failure
       # here fails the release; a re-run is the fix.
