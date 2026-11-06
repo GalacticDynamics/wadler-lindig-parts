@@ -232,8 +232,11 @@ def test_repr_html_and_latex_are_flat():
 
     long = Long(10)
     assert "\n" in repr(long)
-    assert "\n" not in long._repr_html_()
-    assert "\n" not in long._repr_latex_()
+    html, latex = long._repr_html_(), long._repr_latex_()
+    assert html is not None
+    assert latex is not None
+    assert "\n" not in html
+    assert "\n" not in latex
 
 
 @pytest.mark.parametrize("registered", [True, False])
@@ -258,3 +261,43 @@ def test_call_types_show_their_repr_in_a_notebook(registered):
 
     assert Pair(1)._repr_html_() is None
     assert Pair(1)._repr_latex_() is None
+
+
+def test_notebook_hooks_follow_the_class_spec():
+    """A ``mul`` type keeps its operator in a notebook, as ``repr`` does."""
+    from wadler_lindig_parts.examples import Term
+
+    t = Term([1.0, 2.0], "x")
+    assert repr(t) == "[1.0, 2.0] * x"
+    assert t._repr_html_() == "<span>[1.0, 2.0]</span> * <span>x</span>"
+
+
+def test_call_type_without_a_constructor_keeps_its_markup():
+    """No dataclass and no ``__pdoc__``: ``repr`` is fragments, so is the HTML."""
+
+    class Bare(ReprMixin):
+        __repr_spec__ = "call"
+
+        def __init__(self, a):
+            self.a = a
+
+    @pparts.dispatch
+    def _(obj: Bare, /, *, markup="text", **kw):
+        return (PPart("a", str(obj.a)),)
+
+    assert repr(Bare(1)) == "1"
+    assert Bare(1)._repr_html_() == "<span>1</span>"
+
+
+def test_call_type_with_its_own_pdoc_shows_its_repr_in_a_notebook():
+    class Own(ReprMixin):
+        __repr_spec__ = "call"
+
+        def __init__(self, a):
+            self.a = a
+
+        def __pdoc__(self, **kw):
+            return wl.TextDoc(f"Own({self.a})")
+
+    assert repr(Own(1)) == "Own(1)"
+    assert Own(1)._repr_html_() is None

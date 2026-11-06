@@ -1292,8 +1292,14 @@ class ReprMixin:
     then gets wadler-lindig's field layout, and any other type keeps an
     explicit ``__pdoc__``. ``_repr_html_`` and ``_repr_latex_`` lay the
     fragments out flat, since HTML collapses whitespace and LaTeX math ignores
-    newlines. Under a ``call`` spec they return `None`, so a notebook shows the
-    same constructor expression as ``repr``.
+    newlines, and they follow the class spec as ``repr`` does: a ``mul`` type
+    keeps its `` * `` in a notebook. When ``repr`` is a constructor expression
+    (a ``call`` dataclass, or a ``call`` type with its own ``__pdoc__``) they
+    return `None`, so a notebook shows that same expression.
+
+    Under a ``call`` spec a dataclass's ``__pdoc__`` from this mixin returns
+    `None`, which tells wadler-lindig to use its field layout. A subclass that
+    overrides ``__pdoc__`` and calls ``super().__pdoc__()`` must handle that.
 
     The ``call`` behaviour follows the *class* spec, not the one a caller
     passes: ``f"{x:call}"`` asks the type for its ``__pdoc__``, and a mixin
@@ -1338,15 +1344,27 @@ class ReprMixin:
         parts = pparts(self, markup=markup, **layout)
         return parts_to_markup(parts, markup=markup, sep=sep)
 
+    def _repr_is_constructor(self) -> bool:
+        """Whether ``repr`` is a constructor expression, not fragments.
+
+        It is under a ``call`` spec, when the constructor form comes from
+        wadler-lindig's dataclass layout or from a ``__pdoc__`` of the type's
+        own. A ``call`` type with neither still renders its fragments.
+        """
+        if self._repr_spec_parsed["layout"] != "call":
+            return False
+        own_pdoc = type(self).__pdoc__ is not ReprMixin.__pdoc__
+        return own_pdoc or dataclasses.is_dataclass(self)
+
     def _repr_html_(self) -> str | None:
-        # A ``call`` type's repr is a constructor expression, which has no
-        # markup form; `None` tells IPython to show the repr instead.
-        if self._repr_spec_parsed["layout"] == "call":
+        # A constructor expression has no markup form; `None` tells IPython to
+        # show the repr instead.
+        if self._repr_is_constructor():
             return None
         return self._flat_markup("html")
 
     def _repr_latex_(self) -> str | None:
-        if self._repr_spec_parsed["layout"] == "call":
+        if self._repr_is_constructor():
             return None
         return self._flat_markup("latex")
 
