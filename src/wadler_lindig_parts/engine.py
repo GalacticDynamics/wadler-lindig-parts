@@ -1292,7 +1292,12 @@ class ReprMixin:
     then gets wadler-lindig's field layout, and any other type keeps an
     explicit ``__pdoc__``. ``_repr_html_`` and ``_repr_latex_`` lay the
     fragments out flat, since HTML collapses whitespace and LaTeX math ignores
-    newlines.
+    newlines. Under a ``call`` spec they return `None`, so a notebook shows the
+    same constructor expression as ``repr``.
+
+    The ``call`` behaviour follows the *class* spec, not the one a caller
+    passes: ``f"{x:call}"`` asks the type for its ``__pdoc__``, and a mixin
+    type answers with its constructor form only if its own spec is ``call``.
 
     The registered `pparts` method must accept ``**kw`` (the engine forwards
     axes such as ``short_arrays`` and ``unit_style`` on every route).
@@ -1333,10 +1338,16 @@ class ReprMixin:
         parts = pparts(self, markup=markup, **layout)
         return parts_to_markup(parts, markup=markup, sep=sep)
 
-    def _repr_html_(self) -> str:
+    def _repr_html_(self) -> str | None:
+        # A ``call`` type's repr is a constructor expression, which has no
+        # markup form; `None` tells IPython to show the repr instead.
+        if self._repr_spec_parsed["layout"] == "call":
+            return None
         return self._flat_markup("html")
 
-    def _repr_latex_(self) -> str:
+    def _repr_latex_(self) -> str | None:
+        if self._repr_spec_parsed["layout"] == "call":
+            return None
         return self._flat_markup("latex")
 
     def __pdoc__(self, *, indent: int = 2, **kw: Any) -> wl.AbstractDoc | None:

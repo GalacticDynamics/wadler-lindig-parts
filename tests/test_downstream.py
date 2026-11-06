@@ -104,7 +104,7 @@ def test_pformat_matches_repr_for_product_spec():
 
 
 @pytest.mark.parametrize("spec", ["product", "call"])
-def test_missing_pparts_is_a_clear_error_not_recursion(spec):
+def test_missing_pparts_raises_on_every_route_that_needs_it(spec):
     @dataclasses.dataclass(repr=False)
     class N(ReprMixin):
         """Forgot to register pparts."""
@@ -213,7 +213,7 @@ def test_call_dataclass_can_build_fragments_from_its_own_pdoc():
 
     box = Box(1, "<x>")
     assert repr(box).endswith(".Box(a=1, b='<x>')")
-    assert box._repr_html_().endswith(".Box(a=1, b=&#x27;&lt;x&gt;&#x27;)</span>")
+    assert f"{box:html}".endswith(".Box(a=1, b=&#x27;&lt;x&gt;&#x27;)</span>")
 
 
 def test_repr_html_and_latex_are_flat():
@@ -234,3 +234,27 @@ def test_repr_html_and_latex_are_flat():
     assert "\n" in repr(long)
     assert "\n" not in long._repr_html_()
     assert "\n" not in long._repr_latex_()
+
+
+@pytest.mark.parametrize("registered", [True, False])
+def test_call_types_show_their_repr_in_a_notebook(registered):
+    """A constructor expression has no markup form, so the hooks step aside.
+
+    Without this a ``call`` dataclass with no `pparts` raised in both hooks,
+    and one with `pparts` showed fragments in a notebook but a constructor in
+    a terminal.
+    """
+
+    @dataclasses.dataclass(repr=False)
+    class Pair(ReprMixin):
+        __repr_spec__ = "call"
+        a: int
+
+    if registered:
+
+        @pparts.dispatch
+        def _(obj: Pair, /, *, markup="text", **kw):
+            return (PPart("a", str(obj.a)),)
+
+    assert Pair(1)._repr_html_() is None
+    assert Pair(1)._repr_latex_() is None

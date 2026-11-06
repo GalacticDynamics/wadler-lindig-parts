@@ -158,8 +158,8 @@ constructor knowledge, not display knowledge.
 
 The delegation has a consequence worth being explicit about: `call` layout
 asks for `__pdoc__`, and `ReprMixin` *supplies* a `__pdoc__` built from
-fragments. So a type using the mixin gets the fragment form under `call` too,
-while a plain dataclass gets the constructor form:
+fragments. So a type using the mixin with a `product` spec gets the fragment
+form under `call` too, while a plain dataclass gets the constructor form:
 
 ```python
 >>> from wadler_lindig_parts.examples import Term
@@ -202,6 +202,17 @@ Span(lo=0.0, hi=1.0)
 
 A type that is not a dataclass has no field layout to fall back to, so it
 writes its own `__pdoc__`.
+
+Which answer the mixin gives depends on its own `__repr_spec__`, not on the
+spec a caller passes: `f"{x:call}"` asks the type, and only a type whose spec
+is `call` answers with its constructor. In a notebook such a type shows its
+`repr`, because a constructor expression has no HTML or LaTeX form:
+
+```python
+>>> Span(0.0, 1.0)._repr_html_() is None
+True
+
+```
 
 So `eval(repr(x)) == x` stays a promise each type keeps for itself rather than
 one the renderer makes on every type's behalf. The names in such a repr have
