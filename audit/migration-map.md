@@ -17,7 +17,7 @@
 Nothing is deleted. No source content is dropped; every seam below names where
 it lands.
 
-## Seams resolved (from `audit/inventory.md`)
+## Seams resolved (from the pre-restructure scanner run)
 
 | Seam | Line | Move | Lands in |
 |---|--:|---|---|
