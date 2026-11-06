@@ -10,10 +10,15 @@ Stop declaring the version and start deriving it from the repository's `v*`
 tags, so that a release is a tag push. `pyproject.toml` declares the version
 dynamic and names `hatch-vcs` as a build requirement; `uv.lock` loses the one
 line that repeated the number; `ci.yml`'s `lint` job gains the full history
-every other job already fetches; and `cd.yml`'s header comment records that
-the tag is now the version. Nothing else moves. The release path, its
-filename, its two environment names and its test-index-first ordering are
-already what they need to be.
+every other job already fetches; and `cd.yml` gains one step that refuses to
+rebuild a version PyPI already holds, plus the header comment that says why.
+The release path's filename, its two environment names and its
+test-index-first ordering do not move.
+
+That one new step is the answer to the only hazard the measurements turned up:
+a moved tag re-runs the whole publish path and reports success while
+publishing nothing (R9). An earlier draft of these artefacts claimed such a
+run went red. It does not, and that is the worse outcome.
 
 The mechanism is `quax`'s, measured against it rather than recalled — see
 [research.md](./research.md) R1. The three places this repository differs from
@@ -51,8 +56,7 @@ and `README.md` and every docstring under `src/`; 438 tests today
 - The public surface does not grow. No `__version__` (R4).
 - The `docs` and `lint` dependency groups stay 3.11+ by marker.
 
-**Scale/Scope**: four files changed, one of them by a single deleted line and
-one by a single added line.
+**Scale/Scope**: four files changed, one of them by a single deleted line.
 
 ## Constitution Check
 
@@ -102,7 +106,7 @@ parties outside this repository.
 pyproject.toml                  # version declared dynamic; hatch-vcs added to the build; version config added
 uv.lock                         # one line removed, by re-locking
 .github/workflows/ci.yml        # fetch-depth: 0 on the lint job
-.github/workflows/cd.yml        # header comment only
+.github/workflows/cd.yml        # one step in the build job, plus the header comment that explains it
 ```
 
 No file under `src/`, `tests/` or `docs/` is touched. There is nothing to add
@@ -122,10 +126,10 @@ the end of it the repository builds, the suite passes, and a build at a tagged
 commit is named for the tag. This is the whole of User Story 1 and User Story
 2.
 
-**P2 - the automation and its record agree with that.** `ci.yml`'s `lint`
-job and `cd.yml`'s header comment. Neither changes what is built; both change
-what happens when somebody else runs or reads it. This is User Story 3's
-second scenario and FR-007 and FR-011.
+**P2 - the automation agrees with that, and says so.** `ci.yml`'s `lint` job
+gets the history it now needs; `cd.yml` gets the refusal and the comment that
+explains it. Neither changes what a release builds. This is User Story 3's
+second scenario, User Story 1's fourth, and FR-007, FR-011 and FR-013.
 
 ## Risks
 
@@ -136,18 +140,21 @@ second scenario and FR-007 and FR-011.
 | The `lint` job starts emitting a shallow-checkout warning | **Certain without the fix - measured** | `fetch-depth: 0` on that job (R8). |
 | A build on a pull request produces an unuploadable version and somebody reads that as a failure | Plausible | `no-local-version` keeps development versions well-formed (R2), and the publish jobs' `refs/tags/v` guard is what actually prevents a publish. Recorded in contracts/release.md so the next reader does not have to work it out. |
 | A future reader changes the release path without knowing the tag is the version | Plausible - it is the comment's whole job | FR-011: the comment that already explains the fixed filename and environments also records the tag-is-the-version rule. |
-| A moved tag leaves a red CD run that looks like a defect in this change | Already happened once, against `v0.2.0` | Written down in the spec's Edge Cases and in R9, with why the refusal is kept rather than worked around. |
+| A moved tag re-runs the publish path and reports success while publishing nothing | **Already happened — measured.** `v0.2.0` was force-updated on 2026-11-06 and run `42186814040` went green on all three jobs while PyPI's upload timestamps stayed those of the first run | One step at the top of the `build` job refuses a version PyPI already holds, so the second attempt fails instead of reporting success (FR-013, R9). An earlier draft of these artefacts asserted the opposite — that such a run went red — and that error is what the step exists to correct. |
+| A moved tag points a published version at a different commit, which nothing compares | Plausible, and not covered by the evidence above — that run never reached it | The same step. It refuses before the build, so it does not depend on what the upload would have done with differing files. Preventing the tag from moving at all is better and is a repository setting rather than a file; raised in the pull request. |
+| The new step fails a release because of a network blip | Plausible | A re-run is the fix, and it is stated in the step's own comment. The step uses `python3` and the standard library only. |
 
 ## Complexity Tracking
 
-No constitution violations requiring justification. Three deviations from the
+No constitution violations requiring justification. Four deviations from the
 model project, recorded for the reviewer:
 
 | Deviation from `quax@main` | Why | Alternative rejected because |
 |---|---|---|
 | No `build.hooks.vcs.version-file`, and so no `_version.py` and no `__version__` | The constitution fixes the public surface and says there is no private-but-documented tier; a generated version module exists to back a public attribute this package does not have. `importlib.metadata` already answers the question, which is the reason `galax` gives for the same omission | Writing the file to match `quax` exactly would add a generated module, a `.gitignore` entry and a linter exclusion in service of a name nobody asked for |
 | The source-distribution allowlist is kept, which `quax` has no equivalent of | It exists because of a measured 202 KB regression, and its comment says anything added later is excluded by default | Dropping it to match the model project would re-open a fault this repository has already had |
-| The release path has a test-index stage before the real one, which `quax` does not | It predates this feature, and it is what makes a moved tag or a re-run fail before the index where a version cannot be reused (R9) | Removing it to match the model project would move that failure to the index that matters |
+| The release path has a test-index stage before the real one, which `quax` does not | It predates this feature. It is also why the new refusal reads PyPI and not TestPyPI: a run that died between the two stages has already filled TestPyPI and has to be let through (R9) | Removing it to match the model project would lose the stage that catches a package which cannot be uploaded at all |
+| The `build` job refuses a version PyPI already holds, which no project in the family does | The measured behaviour of a moved tag is a green run that publishes nothing (R9). With the version derived from the tag, the tag is the only statement of which commit a version is, so the release path is where the missing check belongs | Doing nothing was the earlier draft's answer and rested on a mistake about what the index does; `skip-existing: true` makes the no-op explicit rather than loud |
 
 One further difference, recorded because it looks like a deviation and is not:
 `figpress` and the other date-versioned libraries carry a workflow step that

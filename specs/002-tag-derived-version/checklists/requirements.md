@@ -33,23 +33,27 @@
 - [x] Requirements are testable and unambiguous
       — FR-002, FR-003, FR-005 and FR-006 are each a build whose output is
       read; FR-009 and FR-010 are each a comparison against what is true
-      today.
+      today; FR-013 is a step run with two inputs and its exit codes read.
 - [x] Success criteria are measurable
-      — four of the five are counts that fall to zero or one; SC-005 is the
-      existing gate set.
+      — four of the six are counts that fall to zero or one; SC-005 is the
+      existing gate set; SC-006 is an exit code.
 - [x] Success criteria are technology-agnostic (no implementation details)
       — SC-001 to SC-004 count files, steps and strings. SC-005 names the
-      gates by role rather than by command.
+      gates by role rather than by command. SC-006 names an outcome, a release
+      that publishes nothing, rather than the check that produces it.
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
-      — six, including the one that is already reachable: `v0.2.0` was
-      force-updated once and the queued re-run failed at the upload step. The
-      spec says what the design does about it, which is to keep the refusal.
+      — seven, including the one already in the record, and it was measured
+      rather than assumed: `v0.2.0` was force-updated once and the queued
+      re-run went green on all three jobs while publishing nothing. An earlier
+      version of this spec said that run failed at the upload step. It did
+      not, and correcting it is what added FR-013.
 - [x] Scope is clearly bounded
       — nothing is tagged, published or merged; no index-side setting is
       touched; no GitHub Release is created; no name is added to the public
       surface. FR-008, FR-010 and three Assumptions each hold one edge of the
-      boundary.
+      boundary. FR-013 is the one addition to scope, and the Notes below say
+      why it was added after the spec was first written.
 - [x] Dependencies and assumptions identified
       — six assumptions. Two of them exist because the request asked for them
       explicitly: which project the mechanism comes from, and every way this
@@ -75,3 +79,13 @@
   decision made under a constraint that has since expired, and this
   specification is where the lifting is written down. Ready for
   `/speckit-plan`.
+- **Amended after the first draft.** This spec originally said that a moved
+  tag produces a failed release run, and listed "change nothing" as the
+  design's answer. Run `42186814040` was then read: it went green on all three
+  jobs, PyPI's upload timestamps did not move, and the attestation digests
+  matched the files already published, because both runs built the same commit.
+  A release that reports success and publishes nothing is the outcome worth
+  acting on, so FR-013, SC-006, a fourth acceptance scenario on User Story 1
+  and Phase 4b of the task list were added. The evidence for the change is in
+  research.md R9, including what it does not cover: a tag moved to a
+  *different* commit, which that run never reached.

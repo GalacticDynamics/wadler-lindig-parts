@@ -91,11 +91,30 @@ version with no local segment.
 
 ---
 
+## Phase 4b: User Story 1, fourth scenario — a release that would publish nothing fails
+
+**Goal**: a tagged run for a version the real index already holds stops before
+anything is built.
+
+**Independent test**: run the step with `GITHUB_REF_NAME` set to a released tag
+and to an unreleased one, and read the exit codes.
+
+**Why this phase exists at all**: an earlier draft of these artefacts asserted
+that a moved tag produced a red run. It does not. `v0.2.0` was force-updated on
+2026-11-06 and run `42186814040` went green on all three jobs while PyPI's
+upload timestamps stayed those of the first run — a release that reported
+success and published nothing (R9).
+
+- [X] T019 [US1] Add a first step to `.github/workflows/cd.yml`'s `build` job, after the checkout and before `hynek/build-and-inspect-python-package`, named "Refuse to rebuild a version PyPI already has" and guarded by `if: startsWith(github.ref, 'refs/tags/v')`. It strips the leading `v` from `GITHUB_REF_NAME`, reads `https://pypi.org/pypi/wadler-lindig-parts/json`, and exits non-zero with a `::error::` naming the version if that version is in `releases`. `python3` and the standard library only — no new dependency, and nothing added to the package. Read PyPI and **not** TestPyPI: a run that died between the two publish jobs has already filled TestPyPI and that retry has to be let through. Write the reasoning above the step, including that a network failure there fails the release and a re-run is the fix (FR-013)
+- [X] T020 [US1] Verify the step as a step, not as a snippet: parse `cd.yml`, confirm the `build` job's steps are checkout, the new step, then the build action; extract the step's `run` block from the parsed YAML and execute it under `bash` with `GITHUB_REF_NAME=v0.2.0` (expect exit 1 and the error naming `0.2.0`) and with `GITHUB_REF_NAME=v0.2.1` (expect exit 0). Check `0.1.0` too, so the result is not a special case for the latest release. This is SC-006
+
+---
+
 ## Phase 5: Polish
 
-- [X] T016 [P] In `.github/workflows/cd.yml`, extend the header comment: it already explains that the filename and the two environment names are fixed by the trusted publishers registered against them, and it must now also record that the tag *is* the version, so a reader who is about to change the release path knows that renaming or re-globbing the trigger changes what gets published. Keep every existing sentence; this is an addition, not a rewrite (FR-011)
+- [X] T016 In `.github/workflows/cd.yml`, extend the header comment: it already explains that the filename and the two environment names are fixed by the trusted publishers registered against them, and it must now also record that the tag *is* the version, so a reader who is about to change the release path knows that renaming or re-globbing the trigger changes what gets published. Keep every existing sentence; this is an addition, not a rewrite. It must also point at the `build` job's first step rather than restate it, and it must correct the claim an earlier draft of it made, that a moved tag produces a red run (FR-011)
 - [X] T017 Run every gate and keep the output for the pull request: `uv run --frozen pytest` (438 tests), `uv run --python 3.10 --no-default-groups --group tests --locked pytest`, `uv run --frozen --group docs zensical build --clean --strict`, and `uv run --frozen pre-commit run --all-files`. The last one includes `taplo-format`, which will reformat `pyproject.toml` if the new tables are laid out differently from the rest of the file — let it, and commit the result. This is SC-005
-- [X] T018 Open the pull request to `main` on the `v0.2.1` milestone (GalacticDynamics/wadler-lindig-parts#25), quoting the output of T001, T007, T008, T011, T013 and T017 in the body. Do not create a tag, do not publish, do not merge: the first tag on the new path is the owner's to push, and `main` requires an approving review the author cannot give
+- [X] T018 Open the pull request to `main` on the `v0.2.1` milestone (GalacticDynamics/wadler-lindig-parts#25), quoting the output of T001, T007, T008, T011, T013, T017 and T020 in the body. Do not create a tag, do not publish, do not merge: the first tag on the new path is the owner's to push, and `main` requires an approving review the author cannot give
 
 ---
 
@@ -108,7 +127,8 @@ Phase 1 (T001, T002)      baseline, must be taken before T003
                └─> Phase 5 (T017, T018)
 Phase 4 (T014) is independent of all of the above — a different file, no
 dependency either way. T013 and T015 read Phase 2's result.
-Phase 5 (T016) is independent of everything except T018.
+Phase 4b (T019, T020) and Phase 5 (T016) all touch `cd.yml`, so they run in
+order: T019, then T020 to verify it, then T016 for the header comment.
 ```
 
 T003, T004 and T005 all edit `pyproject.toml` and are therefore strictly
@@ -118,16 +138,22 @@ because `uv lock` reads the finished file.
 ## Parallel opportunities
 
 - T002 alongside T001.
-- T014 and T016 alongside any of Phase 2 or Phase 3: different files, and
-  neither changes what is built.
+- T014 alongside any of Phase 2 or Phase 3: a different file, and it does not
+  change what is built.
+- Nothing in Phase 4b runs alongside T016: both edit `cd.yml`.
 
 ## Implementation strategy
 
 Phase 2 alone is a complete, shippable change: after it the version comes from
 the tag and a release is a tag push. Phase 3 adds no edit at all — it is the
-check that the duplication is gone. Phase 4's one edit and Phase 5's one
-comment are what keep the automation and its written record honest about the
-new arrangement, and neither alters a build.
+check that the duplication is gone. Phase 4's one edit and Phase 5's comment
+keep the automation and its written record honest about the new arrangement,
+and neither alters a build.
+
+Phase 4b is the one part that was not in the original plan. It was added after
+the measurement in R9 contradicted what these artefacts first claimed about a
+moved tag, and it is the only phase that changes what a release *does* rather
+than what it is named.
 
 ## Notes
 

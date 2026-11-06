@@ -114,3 +114,31 @@ tests
 ```
 
 The seven allowlisted entries, plus the two the build backend adds on its own.
+
+## The release path refuses a version PyPI already holds
+
+The new first step of `cd.yml`'s `build` job, run exactly as a step would run
+it — extracted from the parsed workflow rather than retyped — with
+`GITHUB_REF_NAME` set both ways:
+
+```sh
+GITHUB_REF_NAME=v0.2.0 bash step.sh    # exit 1
+GITHUB_REF_NAME=v0.2.1 bash step.sh    # exit 0
+```
+
+Expected:
+
+```text
+::error::0.2.0 is already on PyPI. The tag is the version, so this run would
+republish a released version instead of making a new one. If the tag was
+moved, move it back; to release again, tag a new version.
+exit=1
+
+0.2.1 is not on PyPI yet
+exit=0
+```
+
+`0.1.0` also exits 1, so the check is reading the index rather than special-
+casing the latest release. The step reads PyPI only, never TestPyPI: a run that
+died between the two publish stages has already filled TestPyPI and has to be
+allowed through.

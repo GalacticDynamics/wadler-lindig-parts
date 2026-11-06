@@ -62,12 +62,32 @@ A consumer building a wheel from the published source distribution — with no
 repository history present — gets the same version as that source
 distribution, read from its own metadata.
 
-## How a release fails
+## A version is made once
 
-- **A version the real index already holds** is refused. Because the test
-  index is uploaded to first, and holds the same versions, the refusal happens
-  there and the real index is never reached. The run goes red.
-- **A moved tag** is this same case: the version does not change when the tag
-  moves, so the second run is a second attempt at a version already published,
-  and it is refused. This is the intended behaviour. A release is retried by
-  tagging again with a new number, never by moving a tag or re-running a run.
+A version may be published once, and the index will not tell you when you try
+again. Measured on 2026-11-06: `v0.2.0` was force-updated to fix a word in its
+annotated message, the whole path ran again on the same commit, uploaded
+byte-identical files, and reported success on all three jobs — while the
+published files' upload timestamps stayed those of the first run. The second
+attempt published nothing and said it had succeeded.
+
+So the first step of the `build` job asks PyPI whether the version the tag
+names is already published, and fails if it is. Three things follow:
+
+- **A tag that is moved** is a second attempt at a published version, and is
+  refused before anything is built. That holds whether the moved tag points at
+  the same commit, where the rebuild would be identical, or at a different one,
+  where the repository and the index would quietly disagree about what that
+  version is.
+- **A re-run of a release that already succeeded** is refused the same way.
+- **A run that died between the two publish stages** is *not* refused. The
+  test index already holds the version but the real one does not, and the
+  refusal reads the real index only, so that retry gets through to finish the
+  release.
+
+A release is retried by tagging a new version. Not by moving a tag, and not by
+re-running a run.
+
+Preventing the tag from moving in the first place would be better than
+refusing the consequence, and it is a repository setting rather than anything
+in these files.

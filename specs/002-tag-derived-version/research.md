@@ -160,34 +160,84 @@ file internally consistent.
 
 ## R9 — A tag that is moved after its release was published
 
-**Decision**: change nothing. The refusal is the mechanism.
+**Decision**: refuse the rebuild, in the `build` job, before anything is built
+or uploaded.
 
-**Measured**: `v0.2.0` was force-updated once on 2026-11-06 to correct a word
-in its annotated message. That queued a second `CD` run against the same tag,
-which failed at the upload step because the version already exists on the
-index.
+**Measured**, and this measurement corrected an earlier draft of this document
+that had it backwards. `v0.2.0` was force-updated on 2026-11-06 to correct a
+word in its annotated message. That queued a second `CD` run, `42186814040`.
+It did **not** fail:
 
-**Rationale**: with the version derived from the tag, a moved tag cannot
-produce a new version — it produces a second attempt at a version an index
-already holds, and the index refuses to overwrite it. That refusal is the
-property worth keeping, so the design's answer is to keep it and to say where
-it lands: `publish-pypi` needs `publish-testpypi`, so the refusal happens at
-the test index and the real index is never reached.
+| | run `42186650578` | run `42186814040` |
+|---|---|---|
+| commit | `2858847` | `2858847` — the same one |
+| Build & inspect | success | success |
+| Publish to TestPyPI | success | success |
+| Publish to PyPI | success | success |
+
+The uploads, though, belong to the first run. PyPI reports
+`2026-11-06T08:18:45` for the wheel and `08:18:46` for the source
+distribution; the second run's publish step did not start until `08:20:06`.
+Its log shows `skip-existing: false`, `Uploading
+wadler_lindig_parts-0.2.0-py3-none-any.whl`, a response from
+`upload.pypi.org/legacy/` with no error anywhere in the run, and the step
+finishing successfully in 10.7 seconds. The attestation digests it generated,
+`75f49cbd70c8d8a0…` and `c3295bf31d95ea4e…`, are exactly the digests of the
+files PyPI already served — because both runs built the same commit, so the
+rebuild was byte-identical.
+
+So the index accepted an identical re-upload as a no-op and the run reported
+success. The earlier draft of this section claimed the run went red; it did
+not, and a green run that published nothing is the worse outcome of the two,
+because only a red one gets looked at.
+
+**What this evidence does and does not cover.** It covers a tag moved on the
+same commit, where the rebuild is identical. It says nothing about a tag moved
+to a *different* commit, where the files differ under a version the index
+already holds — the log never reached that case, and this document does not
+guess what the upload would do with it. That is the case that matters, and the
+reason the refusal does not depend on the answer: whatever the upload does,
+the repository would say `v0.2.0` is one commit while the index serves an
+artefact built from another, and nothing in the release path compares the two.
+
+**Rationale**: with the version derived from the tag, the tag is the only
+statement of which commit a version is. That makes the release path the right
+place for the one check that was missing, and it is cheap: a single step in the
+`build` job that asks PyPI whether the version the tag names is already
+published, and fails with a message naming the version if it is. Verified
+against the live index — `0.2.0` and `0.1.0` exit non-zero with the error,
+`0.2.1` passes — and run as the step itself, extracted from the parsed
+workflow, with `GITHUB_REF_NAME` set both ways.
+
+It asks PyPI and not TestPyPI deliberately. A run that died between the two
+publish jobs has already filled TestPyPI, and that retry has to be let through
+so it can reach PyPI. Reading the real index keeps that recovery path open
+while closing the one that matters.
+
+**Honest about what it costs**: a network failure in that step fails the
+release, and a re-run is the fix. The step also uses nothing but `python3` and
+the standard library, which the runner already has.
 
 **Alternatives considered and rejected**:
 
+- **Nothing, and document it.** This was the earlier draft's answer, and it
+  rested on the mistaken belief that the index produced a red run. It does
+  not, so "nothing" leaves a release path that can report success while
+  publishing nothing.
 - `skip-existing: true` on the publish steps, which the owner's `figpress`
-  uses. On the test-index step it would turn the refusal into a pass and let a
-  moved tag reach the real index, where the same refusal would then be the
-  failure. The protection would be the same and the failure would be one job
-  later, so it buys nothing and costs the early stop.
-- A step that compares the tag against the version before building. With the
-  version derived from the tag they agree by construction; the step would be
-  asserting a tautology. This is the step `figpress` needs and this repository
-  does not — see R10.
-- A step that refuses to build when the version is already on the index. It
-  duplicates the index's own check, needs a network call in the build job, and
-  adds a way for a release to fail that has nothing to do with the release.
+  uses. It makes the no-op explicit rather than loud, and the run is green
+  either way. It also has to be set on the TestPyPI step to be useful, which
+  is the step that would otherwise stop a retry early.
+- **A step that compares the tag against the built version.** With the version
+  derived from the tag they agree by construction; the step would be asserting
+  a tautology. This is the step `figpress` needs and this repository does not
+  — see R10.
+- **Preventing the tag from moving at all**, with a GitHub ruleset on `v*`
+  tags. This is the better fix, because it removes the cause rather than
+  detecting the effect, and the two are complementary rather than
+  alternatives. It is a repository setting and not a file, so it is not part
+  of this feature; it is raised in the pull request as something only the
+  repository owner can apply.
 
 ## R10 — Why not the date-versioned libraries' mechanism
 

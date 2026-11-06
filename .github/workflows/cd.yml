@@ -23,11 +23,13 @@ name: CD
 # on the build job's checkout is load-bearing rather than incidental, because
 # without the tags the build cannot know its own version.
 #
-# A version cannot be published twice. So a tag that is moved and re-run is
-# refused rather than overwriting the release it already made, and because
-# TestPyPI comes first that refusal lands there and PyPI is never reached. The
-# run goes red, which is the record that it was refused. A release is retried
-# by tagging again with a new number, never by moving a tag.
+# A version cannot be made twice, and the index does not say so. Moving a tag
+# re-runs this whole path and it reports success while publishing nothing:
+# measured on 2026-11-06, when `v0.2.0` was force-updated to fix a word in its
+# annotated message. Run 42186814040 rebuilt the same commit, uploaded
+# byte-identical files, and PyPI accepted them -- all three jobs green, and
+# PyPI's upload timestamps still those of the first run. The `build` job's
+# first step exists because of that; the reasoning is written there.
 
 on:
   workflow_dispatch:
@@ -56,6 +58,46 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # The tag is the version, and a tag can be moved. Moving one re-runs this
+      # whole path and nothing objects: on 2026-11-06 `v0.2.0` was
+      # force-updated to fix a word in its message, run 42186814040 rebuilt the
+      # same commit, uploaded byte-identical files, and PyPI accepted them as a
+      # no-op. All three jobs went green and PyPI's upload timestamps did not
+      # move. A release that reports success and published nothing is worse
+      # than one that fails, because only the second kind gets looked at.
+      #
+      # The case that run never reached is the one that matters: a tag moved to
+      # a *different* commit builds different files under a version the index
+      # already holds, and whatever the upload then does, the repository says
+      # `v0.2.0` is one commit while the index serves an artifact built from
+      # another. Nothing else here would notice.
+      #
+      # So this refuses both, before anything is built or uploaded. It asks
+      # PyPI and not TestPyPI on purpose: a run that died between the two
+      # publish jobs has already filled TestPyPI, and that retry has to be let
+      # through so it can reach PyPI. A network failure here fails the release,
+      # and a re-run is the fix.
+      - name: Refuse to rebuild a version PyPI already has
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          python3 - "${GITHUB_REF_NAME#v}" <<'PY'
+          import json, sys, urllib.request
+
+          version = sys.argv[1]
+          with urllib.request.urlopen(
+              "https://pypi.org/pypi/wadler-lindig-parts/json", timeout=30
+          ) as response:
+              if version in json.load(response)["releases"]:
+                  print(
+                      f"::error::{version} is already on PyPI. The tag is the version, "
+                      "so this run would republish a released version instead of making "
+                      "a new one. If the tag was moved, move it back; to release again, "
+                      "tag a new version."
+                  )
+                  raise SystemExit(1)
+          print(f"{version} is not on PyPI yet")
+          PY
 
       - uses: hynek/build-and-inspect-python-package@67230f7b8410ae0052b39c1efc89d89fff43ff10 # v3.0.2
         with:

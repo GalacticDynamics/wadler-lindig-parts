@@ -63,6 +63,9 @@ filenames. It must equal the tag with the leading `v` removed.
 3. **Given** a `v*` tag pushed to the remote, **When** the release automation
    runs, **Then** it publishes to the test index first and to the real index
    only after that succeeds, exactly as it does today.
+4. **Given** a `v*` tag naming a version the real index already holds,
+   **When** the release automation runs, **Then** it stops in the first step
+   of the build job, naming the version, and nothing is built or uploaded.
 
 ---
 
@@ -120,18 +123,26 @@ no local version segment, because an index refuses those outright.
 
 - **A tag is moved after its release was published.** The version is the tag,
   so a moved tag does not become a new version: it becomes a second attempt at
-  a version the index already holds, and the index refuses to overwrite it.
-  The release automation uploads to the test index before the real one, so the
-  refusal happens in the first publish job and the real index is never
-  reached. The run goes red, which is the correct outcome and the record that
-  it was refused. This case is reachable today: `v0.2.0` was force-updated
-  once to correct a word in its annotated message, which queued a second run
-  that failed at the upload step for exactly this reason. Nothing in this
-  feature tries to make that run green — a release process in which a tag can
-  be moved needs the refusal, not a way around it.
-- **A re-run of a release that already succeeded** fails in the same place
-  and for the same reason. Re-running is not how a release is retried; a new
-  tag is.
+  a version the index already holds. Measured on 2026-11-06, nothing objects
+  to that. `v0.2.0` was force-updated to correct a word in its annotated
+  message; the release automation ran again on the same commit, rebuilt
+  byte-identical files, uploaded them, and reported success on all three jobs,
+  while the published files' upload timestamps stayed those of the first run.
+  The second attempt published nothing and said it had succeeded.
+  - The case that run did not reach is the one that matters: a tag moved to a
+    *different* commit builds different files under a version the index
+    already holds. Whatever the upload then does, the repository says that
+    version is one commit while the index serves an artefact built from
+    another, and nothing in the release path would notice.
+  - So this feature refuses both, before anything is built: FR-013. A release
+    that would publish nothing now fails instead of reporting success.
+- **A re-run of a release that already succeeded** is the same case and is
+  refused the same way. Re-running is not how a release is retried; a new tag
+  is.
+- **A run that died between the two publish stages.** The test index already
+  holds the version and the real one does not, and that retry has to be let
+  through so it can reach the real index. The refusal in FR-013 therefore
+  reads the real index only.
 - **A tag that does not begin with `v`** is neither a release nor a version:
   the automation is not triggered by it, and the version derivation does not
   consider it.
@@ -185,6 +196,11 @@ no local version segment, because an index refuses those outright.
   filename and environments are fixed MUST be updated to also record that the
   tag is now the version, since that comment is what a future reader consults
   before changing the release path.
+- **FR-013**: Before anything is built, a tagged run MUST refuse to continue
+  when the version the tag names is already published on the real index. The
+  refusal MUST come before the build and before either upload, and MUST name
+  the version and say what to do instead. It MUST read the real index only, so
+  that a run which died between the two publish stages can still be retried.
 - **FR-012**: The three places in feature 001's artefacts that record the
   static version as a deliberate deviation — its plan's Complexity Tracking,
   its research notes, and the task that created `pyproject.toml` — MUST be
@@ -208,6 +224,10 @@ no local version segment, because an index refuses those outright.
   declarations, not of occurrences.
 - **SC-004**: For a tagged commit, the built version equals the tag with its
   leading `v` removed, in both artefact filenames.
+- **SC-006**: A release that would publish nothing fails instead of reporting
+  success. Measured against the one case in the record — a run for a version
+  the real index already holds stops at the first step of the build job, where
+  today it runs all three jobs green and uploads nothing.
 - **SC-005**: Every existing gate passes unchanged: the full suite, the suite
   on the interpreter floor under the locked resolution, the strict
   documentation build, and the lint hook set.
@@ -227,11 +247,12 @@ no local version segment, because an index refuses those outright.
   scheme. The check-the-number-against-the-tag step has no analogue here,
   because with the version derived from the tag there is no second number to
   check.
-- **Three deliberate differences from `quax` are recorded in the plan**, not
+- **Four deliberate differences from `quax` are recorded in the plan**, not
   left for a reviewer to notice: this package writes no generated version file
   and exposes no `__version__`; it keeps its source-distribution allowlist,
-  which `quax` does not have; and its release path has a test-index stage
-  before the real one, which `quax` does not.
+  which `quax` does not have; its release path has a test-index stage before
+  the real one, which `quax` does not; and it refuses to rebuild a version the
+  index already holds, which no project in the family does.
 - **No GitHub Release is created.** Neither the model project nor the owner's
   date-versioned libraries create one from a tag, and `v0.2.0` has none. A
   release here means a tag and the two index uploads. Creating GitHub Releases
