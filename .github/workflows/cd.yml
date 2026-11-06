@@ -1,8 +1,8 @@
 name: CD
 
-# Nothing here has ever run. The workflow exists, is gated on a `v*` tag, and
-# waits for the repository owner to configure trusted publishing on PyPI's
-# side and decide when the first release happens.
+# Gated on a `v*` tag. It first ran for `v0.1.0` on 2026-11-03, publishing to
+# TestPyPI and then PyPI, so trusted publishing is configured on both sides and
+# a release is a tag push.
 #
 # The filename and the environment names below are not free choices: each
 # trusted publisher is registered against `.github/workflows/cd.yml` plus one
