@@ -70,6 +70,13 @@ settles it.
 
 ```
 
+The same choice is why no registered name may contain `-`. The split happens
+before any lookup, so a name carrying one could never be resolved, and the
+qualified `axis=word` form does not rescue it because that is split first too.
+A character the parser has already spent cannot be lent back to a name, which
+is why registration refuses it outright rather than discouraging it
+([Reserved characters](../reference/registration-rules.md#reserved-characters)).
+
 The price is one rule the reader has to carry: the format spec goes last.
 `mul-.2f-html` does not fail with "unexpected keyword after format spec" — it
 cannot, because by then there are no keywords, only the string `.2f-html`,
@@ -102,6 +109,15 @@ and it is tempting now that the registrants are separate distributions. But
 then there is no second axis for `axis=word` to resolve to, and a shared word
 becomes a defeat rather than an inconvenience. The ambiguity is held open on
 purpose.
+
+One name genuinely cannot be shared: an alias's. An alias expands to a whole
+spec rather than setting an axis, so there is no `axis=word` form for it to
+fall back on, and a word claimed by both an axis and an alias would have no
+resolved reading at all. That is the one case registration refuses outright
+([Registration rules](../reference/registration-rules.md#axes)), and it is
+refused for the same reason the others are allowed: the escape hatch is what
+makes sharing survivable, so a collision that cannot reach it is not worth
+holding open.
 
 The alternative, namespacing every keyword by its axis from the beginning,
 would have made every ordinary spec longer to pay for a collision that has not
