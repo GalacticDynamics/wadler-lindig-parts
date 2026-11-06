@@ -1,3 +1,8 @@
+---
+title: Why one engine rather than four
+description: What the single-renderer choice buys, and what it costs.
+---
+
 # Why formatting is one engine
 
 There are four ways to turn a value into a string: `repr`, `str`,

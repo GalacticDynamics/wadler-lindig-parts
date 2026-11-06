@@ -12,6 +12,11 @@ repo_url  = "https://github.com/GalacticDynamics/wadler-lindig-parts"
 # `navigation.indexes` renders as the section landing page.
 nav = [
   "index.md",
+  { "Start" = [
+    "start/what-it-does.md",
+    "start/is-it-right.md",
+    "start/quickstart.md",
+  ] },
   { "Tutorials" = [
     "tutorials/index.md",
     "tutorials/your-first-formattable-type.md",
