@@ -22,36 +22,45 @@ account or a key.
 
 ## Step 1: a type that cannot print itself yet
 
-Let's start with a plain dataclass holding minutes and seconds:
+Let's start with a plain dataclass holding minutes and seconds, and two short
+methods that hand its printing to the engine:
 
 ```python
 >>> import dataclasses
->>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+>>> from wadler_lindig_parts import PPart, pparts, pspec
 
->>> @dataclasses.dataclass(repr=False)
-... class Duration(ReprMixin):
+>>> @dataclasses.dataclass
+... class Duration:
 ...     minutes: int
 ...     seconds: int
-...     __repr_spec__ = "bare"
+...
+...     def __repr__(self) -> str:
+...         return pspec(self, "bare")
+...
+...     def __format__(self, spec: str, /) -> str:
+...         return pspec(self, spec)
 
 ```
 
-Two things in there are doing work. `ReprMixin` is what will route `repr`,
-`str` and `format` through the engine. `repr=False` stops the dataclass
-decorator writing its own `__repr__` over the one the mixin gives us.
+`__repr__` asks the engine for one particular spec, `bare`. `__format__`
+passes on whatever spec the caller wrote, which is how `f"{d:html}"` will
+reach the engine later. No `repr=False` is needed: a `__repr__` written in
+the class body survives the dataclass decorator.
 
-Printing one now would fail, and the error says exactly what is missing:
+Both methods route through the engine, and the engine does not yet know what a
+`Duration` is made of. Printing one now fails, and the error says exactly what
+is missing:
 
 ```python
 >>> Duration(3, 7)
 Traceback (most recent call last):
     ...
-TypeError: Duration subclasses ReprMixin but registers no pparts (register one with @pparts.dispatch)
+TypeError: Duration registers no pparts, and its str/repr renders through this engine, so rendering it would recurse (register one with @pparts.dispatch)
 
 ```
 
-We have not told the package what a duration is *made of*. That is the next
-step, and the only code we write.
+Telling the package what a duration is made of is the next step, and the only
+real code we write.
 
 ## Step 2: say what it is made of
 
@@ -147,8 +156,15 @@ tuple.
 
 ## What we built
 
-A `Duration` type that renders as text, HTML and LaTeX, from one method. If
-you re-run the session from the top you will get the same output every time.
+A `Duration` type that renders as text, HTML and LaTeX, from one `pparts`
+method and two lines of plumbing. If you re-run the session from the top you
+will get the same output every time.
+
+If you would rather not write those two methods, `ReprMixin` supplies them,
+along with `__str__`, the Jupyter hooks and a `__pdoc__`, in exchange for a
+base class and a `__repr_spec__`:
+[How to make a type formattable](../how-to/make-a-type-formattable.md) shows
+both routes.
 
 The next tutorial adds a word to the format-spec vocabulary itself, so
 `Duration` can answer to `f"{d:total}"` — a spec that does not exist yet.

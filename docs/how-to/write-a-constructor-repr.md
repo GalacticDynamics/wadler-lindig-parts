@@ -82,7 +82,9 @@ same rule — there is no separate opt-out:
 
 ## If you want `repr` itself to use it
 
-Inherit `ReprMixin` and set `__repr_spec__` to a spec whose layout is `call`:
+Write `__repr__` as `pspec(self, "call")`, or inherit `ReprMixin` and set
+`__repr_spec__` to a spec whose layout is `call`. The mixin is the shorter of
+the two here, because it derives `__pdoc__` from the same spec:
 
 ```python
 >>> from wadler_lindig_parts import ReprMixin

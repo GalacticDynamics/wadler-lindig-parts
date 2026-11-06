@@ -65,6 +65,7 @@ __all__ = (
 
 import html as _html
 import re
+import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, ClassVar, Final, NamedTuple
@@ -425,7 +426,40 @@ def pparts(
             "value a spec could format"
         )
         raise TypeError(msg)
-    return (PPart("value", str(obj)),)
+    return (PPart("value", _fallback_text(obj)),)
+
+
+#: Objects whose `str` this thread is already inside, from `_pparts_fallback`.
+#: Keyed by `id`, which is stable and unique while the object is alive -- and it
+#: is alive, since the frame that put it here holds a reference.
+_rendering = threading.local()
+
+
+def _fallback_text(obj: Any, /) -> str:
+    """``str(obj)`` for an unregistered type, refusing to recurse.
+
+    A type that routes ``__repr__`` or ``__str__`` through this engine and
+    registers no `pparts` would otherwise loop: the fallback renders it with
+    ``str``, and ``str`` comes straight back here. `ReprMixin` has its own
+    dispatch guarding that; a hand-written ``__repr__`` has nothing, so the
+    guard lives here too, and says the same thing the mixin's does.
+    """
+    seen: set[int] | None = getattr(_rendering, "ids", None)
+    if seen is None:
+        seen = _rendering.ids = set()
+    key = id(obj)
+    if key in seen:
+        msg = (
+            f"{type(obj).__name__} registers no pparts, and its str/repr "
+            "renders through this engine, so rendering it would recurse "
+            "(register one with @pparts.dispatch)"
+        )
+        raise TypeError(msg)
+    seen.add(key)
+    try:
+        return str(obj)
+    finally:
+        seen.discard(key)
 
 
 def _sep_doc(

@@ -14,20 +14,23 @@ pip install wadler-lindig-parts
 
 ## Declare the parts
 
-Inherit `ReprMixin`, and register a `pparts` method returning the fragments
-your type is made of. `repr=False` on the dataclass decorator matters: a
-generated `__repr__` would shadow the one `ReprMixin` provides, and the
-shadowing is silent.
+Register a `pparts` method returning the fragments your type is made of, and
+route `repr` and `format` through the engine with two short methods:
 
 ```python
 >>> import dataclasses
->>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+>>> from wadler_lindig_parts import PPart, pparts, pspec
 
->>> @dataclasses.dataclass(repr=False)
-... class Duration(ReprMixin):
+>>> @dataclasses.dataclass
+... class Duration:
 ...     amount: float
 ...     unit: str
-...     __repr_spec__ = "bare"
+...
+...     def __repr__(self) -> str:
+...         return pspec(self, "bare")
+...
+...     def __format__(self, spec: str, /) -> str:
+...         return pspec(self, spec)
 
 >>> @pparts.dispatch
 ... def _(obj: Duration, /, *, markup: str = "text", **kw: object) -> tuple:
@@ -38,6 +41,11 @@ shadowing is silent.
 ...     )
 
 ```
+
+`bare` in `__repr__` is the spec `repr` uses: product layout with no operator
+between the parts. `__format__` hands the caller's spec straight to the
+engine, which is what makes the markups below work. Printing one before
+`pparts` is registered raises a `TypeError` naming the omission.
 
 Three fragments: an amount, a separator, a unit. The middle one is marked
 `sep` so that markups and the separator axis can treat it differently from
@@ -57,7 +65,8 @@ content.
 
 ```
 
-That is `repr`, `str` and `__format__`, none of which you wrote.
+`repr` and `format` are the two methods above. `str` came free: Python falls
+back to `__repr__` when a type defines no `__str__`.
 
 ## And the markups
 
@@ -74,13 +83,15 @@ a LaTeX spacing command, because math mode discards a literal space. You
 wrote neither rule — they belong to the markups, and `Duration` never
 mentions them.
 
-## What `__repr_spec__` did
+## The convenience base class
 
-It chose the spec `repr` uses. `bare` means product layout with no operator
-between the parts, which is why `Duration(1.5, "hours")` prints as
-`1.5 hours`. Change it and `repr` changes with it, while every other route
-keeps working. [How to make a type formattable](../how-to/make-a-type-formattable.md)
-shows that on one class, and [Format spec grammar](../reference/spec-grammar.md)
+`ReprMixin` writes those two methods for you, and adds `__str__`, the Jupyter
+hooks and a `__pdoc__`. The spec goes in a `__repr_spec__` class attribute
+instead of in `__repr__`, and it needs `@dataclass(repr=False)`, because a
+generated `__repr__` would silently shadow the inherited one. Most types do
+not need a base class for two short methods, so the examples here write them
+out; [How to make a type formattable](../how-to/make-a-type-formattable.md)
+shows both routes, and [Format spec grammar](../reference/spec-grammar.md)
 says what a spec may contain.
 
 ## Next

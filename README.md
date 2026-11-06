@@ -9,13 +9,18 @@ format spec — including axes added later by somebody else.
 
 ```python
 >>> import dataclasses
->>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+>>> from wadler_lindig_parts import PPart, pparts, pspec
 
->>> @dataclasses.dataclass(repr=False)  # repr=True would shadow the mixin
-... class Version(ReprMixin):
+>>> @dataclasses.dataclass
+... class Version:
 ...     major: int
 ...     minor: int
-...     __repr_spec__ = "bare"
+...
+...     def __repr__(self) -> str:
+...         return pspec(self, "bare")
+...
+...     def __format__(self, spec: str, /) -> str:
+...         return pspec(self, spec)
 
 >>> @pparts.dispatch
 ... def _(obj: Version, /, *, markup="text", **kw):
@@ -35,7 +40,13 @@ format spec — including axes added later by somebody else.
 
 ```
 
-One `pparts` method; four output routes, and they cannot disagree.
+One `pparts` method, two lines of plumbing, and four output routes that
+cannot disagree.
+
+`ReprMixin` writes those two methods for you and adds `__str__`, the Jupyter
+hooks and a `__pdoc__`. Most types do not need a base class for two short
+methods, so the examples here write them out; see
+[how to make a type formattable][howto] for both routes side by side.
 
 ## Install
 
@@ -50,12 +61,12 @@ someone deliberately deleting that test.
 
 ## Register axes before defining classes that name them
 
-`ReprMixin` resolves `__repr_spec__` when the **class is created**, not at
-first print. So a spec naming an axis or alias that is not yet registered
-fails at the `class` statement:
+This one is about `ReprMixin`, which resolves `__repr_spec__` when the
+**class is created**, not at first print. So a spec naming an axis or alias
+that is not yet registered fails at the `class` statement:
 
 ```python
->>> from wadler_lindig_parts import Axis, register_axis, unregister_axis
+>>> from wadler_lindig_parts import Axis, ReprMixin, register_axis, unregister_axis
 
 >>> try:
 ...     class TooEarly(ReprMixin):
@@ -85,6 +96,10 @@ defining the classes whose repr specs use them. The error arrives at a `class`
 statement that looks unrelated to the registration, which is why it is written
 down here rather than left to the message.
 
+A spec written inside `__repr__` is parsed on each call instead, so the plain
+route has no ordering requirement: the same mistake surfaces at the first
+print, naming the spec.
+
 ## Keywords share one flat namespace
 
 Every registering distribution writes into the same keyword index, so a run of
@@ -110,3 +125,4 @@ are task-sized, and the
 has the spec grammar and every public name.
 
 [wl]: https://github.com/patrick-kidger/wadler-lindig
+[howto]: https://galacticdynamics.github.io/wadler-lindig-parts/how-to/make-a-type-formattable/

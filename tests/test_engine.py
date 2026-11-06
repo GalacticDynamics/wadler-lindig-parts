@@ -576,6 +576,44 @@ def test_unregistered_type_rejects_a_value_spec():
         pspec(object(), ".2f")
 
 
+def test_a_repr_routed_through_the_engine_without_pparts_does_not_recurse() -> None:
+    """The str fallback must refuse re-entry rather than loop.
+
+    A hand-written ``__repr__`` calling `pspec` has no `ReprMixin` dispatch to
+    catch a missing `pparts`, so the fallback would render it with ``str`` and
+    ``str`` would come straight back. The error names the omission instead.
+    """
+
+    @dataclasses.dataclass
+    class Loop:
+        x: int
+
+        def __repr__(self) -> str:
+            return pspec(self, "bare")
+
+    with pytest.raises(TypeError, match="would recurse"):
+        repr(Loop(1))
+
+
+def test_the_recursion_guard_releases_its_object() -> None:
+    """A tripped guard must not poison later renders of the same object.
+
+    The guard keys on ``id``, so a leaked key would make the second render of
+    an object fail, and a nested render of a *different* unregistered value
+    fail with it.
+    """
+    obj = object()
+    assert pspec(obj, "bare") == str(obj)
+    assert pspec(obj, "bare") == str(obj)
+
+    class Nests:
+        def __str__(self) -> str:
+            inner = pspec(object(), "bare")[:6]
+            return f"nests({inner})"
+
+    assert pspec(Nests(), "bare") == "nests(<objec)"
+
+
 def test_ppart_doc_defaults_to_none_and_keeps_text():
     assert PPart("value", "1.0").doc is None
 

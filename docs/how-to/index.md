@@ -16,7 +16,8 @@ axes, keywords or constraints rather than steps, that is in the
 ## Making your types renderable
 
 - [How to make a type formattable](make-a-type-formattable.md) — the base
-  case: one `pparts` method and `ReprMixin`.
+  case: one `pparts` method and two short dunders, with the `ReprMixin`
+  shortcut at the end.
 - [How to nest formattable values](nest-formattable-values.md) — when your
   type holds other formattable values and must forward axes to them.
 
