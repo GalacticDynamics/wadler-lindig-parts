@@ -77,28 +77,11 @@ mentions them.
 ## What `__repr_spec__` did
 
 It chose the spec `repr` uses. `bare` means product layout with no operator
-between the parts. Change it and `repr` changes with it, while every other
-route keeps working:
-
-```python
->>> @dataclasses.dataclass(repr=False)
-... class Loud(ReprMixin):
-...     amount: float
-...     unit: str
-...     __repr_spec__ = "mul"
-
->>> @pparts.dispatch
-... def _(obj: Loud, /, *, markup: str = "text", **kw: object) -> tuple:
-...     return (
-...         PPart("amount", f"{obj.amount:g}"),
-...         PPart("mul", " * ", "sep"),
-...         PPart("unit", obj.unit),
-...     )
-
->>> Loud(1.5, "hours")
-1.5 * hours
-
-```
+between the parts, which is why `Duration(1.5, "hours")` prints as
+`1.5 hours`. Change it and `repr` changes with it, while every other route
+keeps working. [How to make a type formattable](../how-to/make-a-type-formattable.md)
+shows that on one class, and [Format spec grammar](../reference/spec-grammar.md)
+says what a spec may contain.
 
 ## Next
 
