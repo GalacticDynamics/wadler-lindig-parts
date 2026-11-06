@@ -95,7 +95,7 @@ version with no local segment.
 
 - [X] T016 [P] In `.github/workflows/cd.yml`, extend the header comment: it already explains that the filename and the two environment names are fixed by the trusted publishers registered against them, and it must now also record that the tag *is* the version, so a reader who is about to change the release path knows that renaming or re-globbing the trigger changes what gets published. Keep every existing sentence; this is an addition, not a rewrite (FR-011)
 - [X] T017 Run every gate and keep the output for the pull request: `uv run --frozen pytest` (438 tests), `uv run --python 3.10 --no-default-groups --group tests --locked pytest`, `uv run --frozen --group docs zensical build --clean --strict`, and `uv run --frozen pre-commit run --all-files`. The last one includes `taplo-format`, which will reformat `pyproject.toml` if the new tables are laid out differently from the rest of the file — let it, and commit the result. This is SC-005
-- [ ] T018 Open the pull request to `main` on the `v0.2.1` milestone, quoting the output of T001, T007, T008, T011, T013 and T017 in the body. Do not create a tag, do not publish, do not merge: the first tag on the new path is the owner's to push, and `main` requires an approving review the author cannot give
+- [X] T018 Open the pull request to `main` on the `v0.2.1` milestone (GalacticDynamics/wadler-lindig-parts#25), quoting the output of T001, T007, T008, T011, T013 and T017 in the body. Do not create a tag, do not publish, do not merge: the first tag on the new path is the owner's to push, and `main` requires an approving review the author cannot give
 
 ---
 
