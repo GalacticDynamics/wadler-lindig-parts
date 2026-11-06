@@ -107,6 +107,41 @@ Span(lo=0.0, hi=1.0)
 
 ```
 
+## If the renderer needs options of its own
+
+`wadler_lindig.pformat` takes options that are not spec words, such as a
+`custom=` hook that lays out a value type its own way. Return them from
+`__repr_options__`. It receives the spec, so an option can apply to some specs
+and not others; here the short form is kept out of `array`:
+
+```python
+>>> import dataclasses
+
+>>> class Samples:
+...     def __repr__(self):
+...         return "Samples([0.1, 0.4, 0.2])"
+
+>>> def short_samples(obj):
+...     return wl.TextDoc("Samples(3)") if isinstance(obj, Samples) else None
+
+>>> @dataclasses.dataclass(repr=False)
+... class Run(ReprMixin):
+...     __repr_spec__ = "call-type"
+...     data: Samples
+...
+...     def __repr_options__(self, spec, /):
+...         return {"custom": short_samples} if spec["value"] == "type" else {}
+
+>>> Run(Samples())
+Run(data=Samples(3))
+>>> f"{Run(Samples()):call-array}"
+'Run(data=Samples([0.1, 0.4, 0.2]))'
+
+```
+
+`repr`, `str`, `format` and the Jupyter hooks all ask `__repr_options__`, so
+setting it once covers every route.
+
 ## If your type is a dataclass
 
 Do nothing. `wadler_lindig` already produces the constructor form, and a

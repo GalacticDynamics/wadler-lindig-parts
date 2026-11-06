@@ -5,19 +5,22 @@ import pathlib
 import subprocess
 import sys
 import textwrap
+from typing import Any
 
 import pytest
 import wadler_lindig as wl
 
 from wadler_lindig_parts import (
+    parse_spec,
     PPart,
     pparts,
     pspec,
     register_alias,
+    render,
     ReprMixin,
     unregister_alias,
 )
-from wadler_lindig_parts.examples import Version
+from wadler_lindig_parts.examples import Point, Version
 
 
 def test_every_route_comes_from_one_pparts():
@@ -301,3 +304,56 @@ def test_call_type_with_its_own_pdoc_shows_its_repr_in_a_notebook():
 
     assert repr(Own(1)) == "Own(1)"
     assert Own(1)._repr_html_() is None
+
+
+class _Payload:
+    """Stands in for an array: wadler-lindig would print it in full."""
+
+    def __repr__(self) -> str:
+        return "Payload([1, 2, 3])"
+
+
+def _short_payload(obj):
+    return wl.TextDoc("payload[3]") if isinstance(obj, _Payload) else None
+
+
+def test_repr_options_reach_every_route_and_can_depend_on_the_spec():
+    @dataclasses.dataclass(repr=False)
+    class Holder(ReprMixin):
+        __repr_spec__ = "call-type-width=200"
+        a: Any
+
+        def __repr_options__(self, spec, /):
+            return {"custom": _short_payload} if spec["value"] == "type" else {}
+
+    @pparts.dispatch
+    def _(obj: Holder, /, *, markup="text", custom=None, **kw):
+        return (PPart("value", wl.pformat(obj, width=10**9, custom=custom)),)
+
+    h = Holder(_Payload())
+    assert repr(h).endswith(".Holder(a=payload[3])")
+    assert str(h) == repr(h)
+    assert f"{h:call-array-width=200}".endswith(".Holder(a=Payload([1, 2, 3]))")
+    assert f"{h:type-width=200}".endswith(".Holder(a=payload[3])")
+    assert h._repr_html_() is None
+
+
+def test_render_extra_wins_over_repr_options():
+    @dataclasses.dataclass(repr=False)
+    class Holder(ReprMixin):
+        __repr_spec__ = "call"
+        a: Any
+
+        def __repr_options__(self, spec, /):
+            return {"custom": _short_payload}
+
+    h = Holder(_Payload())
+    spec = parse_spec("call-width=200")
+    assert render(h, spec).endswith(".Holder(a=payload[3])")
+    out = render(h, spec, custom=lambda _: None)
+    assert out.endswith(".Holder(a=Payload([1, 2, 3]))")
+
+
+def test_types_without_repr_options_are_unchanged():
+    assert not hasattr(Point, "__repr_options__")
+    assert pspec(Point(1.0, 2.0), "call") == "Point(x=1.0, y=2.0)"
