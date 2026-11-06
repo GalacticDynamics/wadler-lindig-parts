@@ -14,6 +14,20 @@ name: CD
 # A release goes to TestPyPI first: `publish-pypi` needs `publish-testpypi`,
 # so a package that cannot be uploaded at all fails before it reaches the
 # index that matters, where a version number cannot be reused.
+#
+# The tag is also the version. `pyproject.toml` declares the version dynamic
+# and derives it from `git describe --match v*`, so the number in the tag is
+# the number published and no file in the repository names it. Two
+# consequences for anyone editing this file: re-globbing or renaming the
+# trigger changes *what* gets published and not only when, and `fetch-depth: 0`
+# on the build job's checkout is load-bearing rather than incidental, because
+# without the tags the build cannot know its own version.
+#
+# A version cannot be published twice. So a tag that is moved and re-run is
+# refused rather than overwriting the release it already made, and because
+# TestPyPI comes first that refusal lands there and PyPI is never reached. The
+# run goes red, which is the record that it was refused. A release is retried
+# by tagging again with a new number, never by moving a tag.
 
 on:
   workflow_dispatch:

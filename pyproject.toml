@@ -17,6 +17,7 @@ classifiers = [
 # that test, which a reviewer will see.
 dependencies  = ["plum-dispatch>=2.7.0", "wadler-lindig>=0.1.8"]
 description   = "A parts layer over wadler-lindig: one engine behind repr, str, format and markup."
+dynamic       = ["version"]
 keywords      = ["formatting", "pretty-printing", "repr", "wadler-lindig"]
 license       = "BSD-3-Clause"
 license-files = ["LICENSE"]
@@ -26,11 +27,16 @@ readme        = "README.md"
 # inherit a consumer's floor. The 3.10 CI job is what makes this a fact.
 requires-python = ">=3.10"
 urls            = { repository = "https://github.com/GalacticDynamics/wadler-lindig-parts" }
-version         = "0.2.0"
 
+# `hatch-vcs` is a *build* requirement, not a dependency. It is absent from the
+# installed package's dependency set, and the import test in
+# `tests/test_engine.py` parses the modules under `src/`, which a build backend
+# never enters. Constitution principle I is about what the package imports at
+# runtime, so it is untouched here -- said out loud because principle I is the
+# one thing the constitution says cannot be amended by adding a dependency.
 [build-system]
 build-backend = "hatchling.build"
-requires      = ["hatchling"]
+requires      = ["hatch-vcs", "hatchling"]
 
 [dependency-groups]
 dev = [
@@ -79,6 +85,50 @@ lint = [
   'ruff>=0.15.9; python_version >= "3.11"',
 ]
 tests = ["pytest>=8.3.5", "sybil>=9"]
+
+# The version is the tag, and nowhere else. Feature 001 chose a static version
+# because the repository had no tags and the request forbade creating one; both
+# halves of that reason expired when `v0.1.0` and `v0.2.0` were tagged and
+# published. What the static version left behind was a number written twice --
+# here and in `uv.lock`'s own entry -- so a release meant two edits and a tag.
+# Now it means a tag.
+#
+# Two of these three settings are load-bearing rather than taste.
+#
+# `no-local-version`: both indexes reject a version carrying a local segment
+# outright. Without it a build anywhere but a clean tag is named
+# `0.2.1.dev1+gc1ffc7a.d20261106` and cannot be uploaded at all. That matters
+# because `cd.yml` also runs on `workflow_dispatch`, where the build job runs
+# on a branch and should still produce something well-formed.
+#
+# `--match v*`: the same glob `cd.yml` is triggered by, so the set of tags that
+# releases and the set that sets the version are one set. The default glob is
+# `*[0-9]*`, which would let a tag like `2026-audit` set the version too.
+# Measured: substituting `--match zzz*` yields `0.1.dev37`, so the option is
+# honoured rather than decorative.
+#
+# There is deliberately no `build.hooks.vcs.version-file`, which `quax`, `unxt`
+# and `coordinax` all have. It exists to back a `__version__` attribute, and
+# the constitution fixes the public surface at `engine.__all__` plus
+# `generic.__all__` plus `examples`, with no private-but-documented tier.
+# `importlib.metadata.version("wadler-lindig-parts")` already answers the
+# question -- which is the reason `galax` gives for omitting the same hook.
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.version.raw-options.scm.git]
+describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "v*",
+]
 
 # An allowlist, not a denylist. Without this section hatchling falls back to
 # "everything git does not ignore", which built a 202 KB sdist against a 25 KB

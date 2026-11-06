@@ -814,7 +814,6 @@ wheels = [
 
 [[package]]
 name = "wadler-lindig-parts"
-version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "plum-dispatch" },
