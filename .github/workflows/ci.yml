@@ -63,11 +63,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      # Full history, like every other job in this file. `uv sync` below builds
-      # this package's metadata, and the version is derived from the `v*` tags
-      # -- so a shallow checkout warns that it is shallow and derives
-      # `0.1.dev1` instead. Nothing here asserts the version, which is exactly
-      # why it would be a confusing thing to debug later.
+      # Full history, like every other job here: `uv sync` builds this
+      # package's metadata, and the version comes from the `v*` tags.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0

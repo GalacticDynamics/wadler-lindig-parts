@@ -87,18 +87,16 @@ specs/002-tag-derived-version/
 ├── spec.md
 ├── plan.md               # this file
 ├── research.md           # R1-R11, all measured
-├── quickstart.md         # the commands that prove it, and their expected output
-├── contracts/
-│   └── release.md        # what a tag promises, and what is fixed from outside
+├── quickstart.md         # the commands that prove it, and what they print
 ├── checklists/
 │   └── requirements.md
 └── tasks.md              # /speckit-tasks output
 ```
 
-There is no `data-model.md`. This feature introduces no entity, no field and
-no state machine; the one thing it has that resembles data is the release
-contract, which is in `contracts/release.md` because it is a contract with
-parties outside this repository.
+There is no `data-model.md` and no `contracts/`. This feature introduces no
+entity, no field and no state machine, and what a tag promises is stated where
+it is enforced: in `cd.yml`'s own comments and in FR-002 to FR-004, FR-008 and
+FR-013. A separate contract document said the same things a third time.
 
 ### Source Code (repository root)
 
@@ -138,7 +136,7 @@ second scenario, User Story 1's fourth, and FR-007, FR-011 and FR-013.
 | A wheel cannot be built from the published source distribution, because there is no git history there | Plausible, and the only way this feature fails quietly | Measured before writing the plan: it works, and the version comes from the source distribution's `PKG-INFO` (R6). This is the path the release workflow itself takes. |
 | `uv.lock` ends up inconsistent, so `--locked` or `--frozen` fails in CI | Low | Re-lock rather than hand-edit, then run both gates that use those flags. Measured: the diff is one deleted line (R5). |
 | The `lint` job starts emitting a shallow-checkout warning | **Certain without the fix - measured** | `fetch-depth: 0` on that job (R8). |
-| A build on a pull request produces an unuploadable version and somebody reads that as a failure | Plausible | `no-local-version` keeps development versions well-formed (R2), and the publish jobs' `refs/tags/v` guard is what actually prevents a publish. Recorded in contracts/release.md so the next reader does not have to work it out. |
+| A build on a pull request produces an unuploadable version and somebody reads that as a failure | Plausible | `no-local-version` keeps development versions well-formed (R2), and the publish jobs' `refs/tags/v` guard is what actually prevents a publish. |
 | A future reader changes the release path without knowing the tag is the version | Plausible - it is the comment's whole job | FR-011: the comment that already explains the fixed filename and environments also records the tag-is-the-version rule. |
 | A moved tag re-runs the publish path and reports success while publishing nothing | **Already happened — measured.** `v0.2.0` was force-updated on 2026-11-06 and run `42186814040` went green on all three jobs while PyPI's upload timestamps stayed those of the first run | One step at the top of the `build` job refuses a version PyPI already holds, so the second attempt fails instead of reporting success (FR-013, R9). An earlier draft of these artefacts asserted the opposite — that such a run went red — and that error is what the step exists to correct. |
 | A moved tag points a published version at a different commit, which nothing compares | Plausible, and not covered by the evidence above — that run never reached it | The same step. It refuses before the build, so it does not depend on what the upload would have done with differing files. Preventing the tag from moving at all is better and is a repository setting rather than a file; raised in the pull request. |

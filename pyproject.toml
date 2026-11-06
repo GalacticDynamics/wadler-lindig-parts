@@ -28,12 +28,10 @@ readme        = "README.md"
 requires-python = ">=3.10"
 urls            = { repository = "https://github.com/GalacticDynamics/wadler-lindig-parts" }
 
-# `hatch-vcs` is a *build* requirement, not a dependency. It is absent from the
-# installed package's dependency set, and the import test in
-# `tests/test_engine.py` parses the modules under `src/`, which a build backend
-# never enters. Constitution principle I is about what the package imports at
-# runtime, so it is untouched here -- said out loud because principle I is the
-# one thing the constitution says cannot be amended by adding a dependency.
+# `hatch-vcs` is a *build* requirement, not a dependency: absent from the
+# installed package's dependency set, and invisible to the import test in
+# `tests/test_engine.py`, which parses the modules under `src/`. Principle I is
+# about what the package imports at runtime.
 [build-system]
 build-backend = "hatchling.build"
 requires      = ["hatch-vcs", "hatchling"]
@@ -104,15 +102,10 @@ tests = ["pytest>=8.3.5", "sybil>=9"]
 # `--match v*`: the same glob `cd.yml` is triggered by, so the set of tags that
 # releases and the set that sets the version are one set. The default glob is
 # `*[0-9]*`, which would let a tag like `2026-audit` set the version too.
-# Measured: substituting `--match zzz*` yields `0.1.dev37`, so the option is
-# honoured rather than decorative.
 #
 # There is deliberately no `build.hooks.vcs.version-file`, which `quax`, `unxt`
-# and `coordinax` all have. It exists to back a `__version__` attribute, and
-# the constitution fixes the public surface at `engine.__all__` plus
-# `generic.__all__` plus `examples`, with no private-but-documented tier.
-# `importlib.metadata.version("wadler-lindig-parts")` already answers the
-# question -- which is the reason `galax` gives for omitting the same hook.
+# and `coordinax` all have: nothing here exposes `__version__`, and
+# `importlib.metadata.version("wadler-lindig-parts")` answers the question.
 [tool.hatch.version]
 source = "vcs"
 

@@ -8,8 +8,7 @@ description: "Task list for deriving wadler-lindig-parts' version from its git t
 **Input**: Design documents from `/specs/002-tag-derived-version/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md),
-[research.md](./research.md), [contracts/release.md](./contracts/release.md),
-[quickstart.md](./quickstart.md)
+[research.md](./research.md), [quickstart.md](./quickstart.md)
 
 **Tests**: no new test file. Nothing under `src/` changes, so there is no
 behaviour for a unit test to pin, and principle V is about rendering claims.
