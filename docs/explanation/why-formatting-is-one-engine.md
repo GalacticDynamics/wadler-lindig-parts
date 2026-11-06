@@ -173,8 +173,35 @@ while a plain dataclass gets the constructor form:
 
 That is not an inconsistency; it is the delegation working. `call` means "ask
 the type", and the two types answer differently because they have told
-`wadler_lindig` different things. A type whose `repr` should be a constructor
-expression writes its own `__pdoc__` and does not use the mixin's.
+`wadler_lindig` different things.
+
+A type whose `repr` should be a constructor expression says so with a `call`
+spec. If it is a dataclass, the mixin then steps aside and wadler-lindig's
+field layout answers, so the mixin and a plain dataclass agree:
+
+```python
+>>> import dataclasses
+>>> from wadler_lindig_parts import PPart, ReprMixin, pparts
+
+>>> @dataclasses.dataclass(repr=False)
+... class Span(ReprMixin):
+...     __repr_spec__ = "call"
+...     lo: float
+...     hi: float
+
+>>> @pparts.dispatch
+... def _(obj: Span, /, *, markup="text", **kw):
+...     return (PPart("lo", str(obj.lo)), PPart("to", " to ", "sep"), PPart("hi", str(obj.hi)))
+
+>>> Span(0.0, 1.0)
+Span(lo=0.0, hi=1.0)
+>>> f"{Span(0.0, 1.0):bare}"
+'0.0 to 1.0'
+
+```
+
+A type that is not a dataclass has no field layout to fall back to, so it
+writes its own `__pdoc__`.
 
 So `eval(repr(x)) == x` stays a promise each type keeps for itself rather than
 one the renderer makes on every type's behalf. The names in such a repr have

@@ -113,7 +113,15 @@ def test_missing_pparts_is_a_clear_error_not_recursion(spec):
         __repr_spec__ = spec
 
     msg = "N subclasses ReprMixin but registers no pparts"
-    for call in (repr, str, lambda o: f"{o:mul}", wl.pformat):
+    # A ``call`` dataclass renders its fields without any fragments, so only
+    # the fragment routes need the missing registration.
+    calls = [lambda o: f"{o:mul}"]
+    if spec == "call":
+        for call in (repr, str, wl.pformat):
+            assert call(N(1)).endswith(".N(x=1)")
+    else:
+        calls += [repr, str, wl.pformat]
+    for call in calls:
         with pytest.raises(TypeError, match=msg):
             call(N(1))
 
@@ -184,3 +192,45 @@ def test_engine_and_generic_import_without_numpy_or_jax():
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_call_dataclass_can_build_fragments_from_its_own_pdoc():
+    """A ``call`` dataclass's fragments may reuse wadler-lindig's field layout.
+
+    Before the mixin stepped aside under ``call``, `wl.pdoc` here reached the
+    mixin's ``__pdoc__``, which asked `pparts` again, without end.
+    """
+
+    @dataclasses.dataclass(repr=False)
+    class Box(ReprMixin):
+        __repr_spec__ = "call"
+        a: int
+        b: str
+
+    @pparts.dispatch
+    def _(obj: Box, /, *, markup="text", **kw):
+        return (PPart("value", wl.pformat(obj, width=10**9)),)
+
+    box = Box(1, "<x>")
+    assert repr(box).endswith(".Box(a=1, b='<x>')")
+    assert box._repr_html_().endswith(".Box(a=1, b=&#x27;&lt;x&gt;&#x27;)</span>")
+
+
+def test_repr_html_and_latex_are_flat():
+    """HTML collapses whitespace and LaTeX math ignores newlines: no breaks."""
+
+    @dataclasses.dataclass(repr=False)
+    class Long(ReprMixin):
+        n: int
+
+    @pparts.dispatch
+    def _(obj: Long, /, *, markup="text", **kw):
+        parts = []
+        for i in range(obj.n):
+            parts += [PPart(f"p{i}", "word" * 5), PPart("mul", " * ", "sep")]
+        return tuple(parts[:-1])
+
+    long = Long(10)
+    assert "\n" in repr(long)
+    assert "\n" not in long._repr_html_()
+    assert "\n" not in long._repr_latex_()

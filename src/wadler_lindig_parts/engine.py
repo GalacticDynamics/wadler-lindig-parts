@@ -63,6 +63,7 @@ __all__ = (
     "unwrap_math",
 )
 
+import dataclasses
 import html as _html
 import re
 import threading
@@ -369,6 +370,10 @@ FLAT: Final = 10**9
 
 def doc_part(role: str, doc: wl.AbstractDoc, /, kind: str = "content") -> PPart:
     """Build a `PPart` carrying a document, with its flat text alongside.
+
+    The engine inserts ``doc`` as it is, so text in it must already be escaped
+    for the markup being rendered, as a `pvalue` method does with
+    `markup_table`'s ``escape``. Only a part's ``text`` is escaped for you.
 
     Examples
     --------
@@ -1283,8 +1288,11 @@ class ReprMixin:
             __repr_spec__ = "bare"
 
     Register `pparts` for the type; everything else follows. A type whose
-    ``repr`` is a *constructor expression* should keep an explicit
-    ``__pdoc__`` instead.
+    ``repr`` is a *constructor expression* sets a ``call`` spec: a dataclass
+    then gets wadler-lindig's field layout, and any other type keeps an
+    explicit ``__pdoc__``. ``_repr_html_`` and ``_repr_latex_`` lay the
+    fragments out flat, since HTML collapses whitespace and LaTeX math ignores
+    newlines.
 
     The registered `pparts` method must accept ``**kw`` (the engine forwards
     axes such as ``short_arrays`` and ``unit_style`` on every route).
@@ -1312,13 +1320,33 @@ class ReprMixin:
     def __format__(self, format_spec: str, /) -> str:
         return pspec(self, format_spec)
 
+    def _flat_markup(self, markup: str, /) -> str:
+        """Render the fragments in ``markup``, laid out flat.
+
+        Flat because HTML collapses whitespace and LaTeX math ignores
+        newlines: a line break would only lengthen the string, and in a
+        notebook the HTML wraps to the cell's width on its own.
+        """
+        layout = _layout_kwargs(self._repr_spec_parsed, "product")
+        layout.pop("markup", None)
+        sep = layout.pop("sep", None)
+        parts = pparts(self, markup=markup, **layout)
+        return parts_to_markup(parts, markup=markup, sep=sep)
+
     def _repr_html_(self) -> str:
-        return pspec(self, "html")
+        return self._flat_markup("html")
 
     def _repr_latex_(self) -> str:
-        return pspec(self, "latex")
+        return self._flat_markup("latex")
 
-    def __pdoc__(self, *, indent: int = 2, **kw: Any) -> wl.AbstractDoc:
+    def __pdoc__(self, *, indent: int = 2, **kw: Any) -> wl.AbstractDoc | None:
+        # A dataclass asking for the constructor form gets wadler-lindig's own
+        # field layout, which `None` falls back to. Anything else has no
+        # constructor form to fall back to, so it keeps the fragments.
+        if self._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(
+            self
+        ):
+            return None
         layout = _layout_kwargs(self._repr_spec_parsed, "product")
         markup = layout.pop("markup", "text")
         sep = layout.pop("sep", None)
