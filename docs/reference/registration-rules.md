@@ -47,8 +47,7 @@ axis 'probe_a' is already registered
 
 ```
 
-A keyword that is already an alias is refused, because an alias is a whole
-spec and so has no qualified form to fall back on:
+A keyword that is already an alias is refused:
 
 ```python
 >>> from wadler_lindig_parts import register_alias, unregister_alias
@@ -61,6 +60,9 @@ spec and so has no qualified form to fall back on:
 keyword 'al' is already an alias
 
 ```
+
+For why this one is a refusal while two axes sharing a keyword is not, see
+[Why keywords share one namespace](../explanation/why-formatting-is-one-engine.md#why-keywords-share-one-namespace).
 
 Only one axis may claim the spec's trailing free-text run. `value` already
 does:
@@ -135,11 +137,8 @@ markup row is missing required keys ['vsep', 'escape']
 
 ## Reserved characters
 
-No registered name may contain `-`. `parse_spec` splits on it before any
-lookup, so such a name could never be resolved — and the qualified
-`axis=word` form does not rescue it, because that is split first too.
-
-The rule applies to axis names, keywords, alias names and markup names alike:
+No registered name may contain `-`. The rule applies to axis names, keywords,
+alias names and markup names alike:
 
 ```python
 >>> try:
@@ -150,7 +149,9 @@ alias 'a-b' may not contain '-'
 
 ```
 
-Use `_` inside a name that needs two words.
+Use `_` inside a name that needs two words. For why the character is
+unusable rather than merely discouraged, see
+[Why the spec grammar scans left to right](../explanation/why-formatting-is-one-engine.md#why-the-spec-grammar-scans-left-to-right).
 
 ## Keyword collisions
 

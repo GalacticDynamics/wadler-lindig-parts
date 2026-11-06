@@ -6,8 +6,8 @@ description: Register a pvalue method so the value axis and format specs mean so
 # How to render your own payload type
 
 A fragment's payload — the array, quantity or vector it carries — is rendered
-by `pvalue`. The default sends it through `repr`, or through `format` when the
-spec carries one, which suits a scalar and suits nothing with structure.
+by `pvalue`. The default handles a scalar and nothing with structure; for what
+it does exactly, see [the `value` axis](../reference/axes.md#value).
 
 `pvalue` is a dispatch point, so you can register a method for your own type
 and decide there what a value format spec means for it.
@@ -78,9 +78,8 @@ The angle brackets came through as `&lt;` and `&gt;` because the method asked
 ## If you want `short_arrays` to mean something
 
 The `value` axis's three keywords arrive as `short_arrays`, mapped through
-`SHORT_ARRAYS` — `array` → `False`, `values` → `"compact"`, `type` → `True`.
-Branch on it if your type has a verbose and a terse form; ignore it if it does
-not.
+`SHORT_ARRAYS` ([the mapping](../reference/axes.md#value)). Branch on it if
+your type has a verbose and a terse form; ignore it if it does not.
 
 ## Accept and forward `**kw`
 
