@@ -19,12 +19,12 @@ own formattable, see
 ## Why one renderer and not four
 
 Four renderers means four places a change has to land, and nothing to stop
-them drifting. That is not hypothetical. Before this engine existed, in the
-library this package was extracted from, `_repr_latex_` wrapped a unit's
-`repr` in `$…$` by slicing the first and last character off it. For a plain
-unit that worked. For a value whose `repr` was not already `$…$` it quietly
-ate two real characters. The fault was structural: the LaTeX path had no way
-to know what the other three knew, so nothing kept it in step with them.
+them drifting. A route that wraps or adapts another route's *string* can only
+assume what shape that string has — that a `repr` already carries its own
+`$…$`, say, so the wrapper can be sliced back off. The assumption holds for
+the types it was written against and quietly eats real characters from the
+rest, and nothing in a four-renderer design keeps it in step with what the
+other three produce.
 
 So a type no longer says how it renders. It says what it is _made of_: a tree
 of labelled fragments, returned from `pparts`. Each output route lays that
@@ -40,12 +40,13 @@ type and it gets every markup, including ones added later by somebody else.
 
 ```
 
-One `pparts` method produced all three. The slicing bug has nowhere to live:
-nothing in the LaTeX path knows what a character is.
+One `pparts` method produced all three, and no route read another route's
+output. A markup wraps the fragments it is handed, so it has no string to
+slice and nothing to assume about one.
 
-The cost is indirection. Reading `_repr_latex_` used to show you the whole
-story; now it shows you a call into a renderer, and the story is spread across
-the fragment tree, the markup table and the layout. That is a real loss, paid
+The cost is indirection. A hand-written `_repr_latex_` shows you the whole
+story; a call into a renderer does not, and the story is spread across the
+fragment tree, the markup table and the layout. That is a real loss, paid
 once, against four paths that can no longer disagree.
 
 ## Why the spec grammar scans left to right
@@ -221,15 +222,14 @@ costs a second render.
 
 ## Why the engine is a package of its own
 
-The code was split in two inside `unxt`, at the line where it would later be
-cut. One half knew about fragments, markups, the parser, the layouts and the
-axis registry, and nothing about quantities. The other half was the axes
-`unxt` contributed to the grammar. This package is that first half, extracted.
+This package holds the fragments, the markups, the parser, the layouts and the
+axis registry, and knows nothing about quantities. `unxt` holds the axes it
+contributes to the grammar, and depends on this package for the rest.
 
-The split existed because `coordinax` and `galax` needed the same machinery.
-The alternative was for each to depend on `unxt` for its string formatting,
-which would have made `unxt` a dependency of packages with nothing else to do
-with units.
+The line is drawn there because `coordinax` and `galax` need the same
+machinery. The alternative is for each to depend on `unxt` for its string
+formatting, which makes `unxt` a dependency of packages with nothing else to
+do with units.
 
 A claim like "imports nothing domain-specific" decays the moment someone adds
 a convenient import, so it is enforced rather than written down: a test parses
@@ -238,13 +238,12 @@ every module in this package and fails if anything outside `wadler_lindig`,
 dependencies, and adding a third means deleting that test, which a reviewer
 sees.
 
-`unxt`, `coordinax` and `galax` now register into this package as peers. There
-is no privileged set of axes, and an axis added downstream is read out of a
-spec exactly like a built-in one. What changed at the extraction was not the
-mechanism but the status of three rules: the registry's collision behaviour,
-the refusal of a malformed markup row, and the moment `__repr_spec__` is
-resolved were implementation details inside one package, and are contract
-between distributions now. Each has a test pinning it, for that reason.
+`unxt`, `coordinax` and `galax` register into this package as peers. There is
+no privileged set of axes, and an axis added downstream is read out of a spec
+exactly like a built-in one. Being peers across a distribution boundary makes
+three rules contract rather than implementation detail: the registry's
+collision behaviour, the refusal of a malformed markup row, and the moment
+`__repr_spec__` is resolved. Each has a test pinning it, for that reason.
 
 ## Why the layout is not ours
 
