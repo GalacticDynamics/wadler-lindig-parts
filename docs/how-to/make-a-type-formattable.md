@@ -92,7 +92,7 @@ that one route is not built from fragments, see
 ## If your type registers no `pparts` at all
 
 It still renders — it degrades to `str(obj)`. Asking it for a value format
-spec raises, since it has declared no elements to format.
+spec raises, since it has declared no value a spec could format.
 
 ## See also
 

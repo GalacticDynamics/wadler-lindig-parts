@@ -45,9 +45,10 @@ def _value_product_kwargs(value: Any, /) -> dict[str, Any]:
 
     The axis holds *either* one of its keywords or a Python format spec, so
     this is the one place that distinction becomes two arguments: how verbose
-    the array is, and how each element is formatted. Free text implies the
-    values form -- a shape/dtype summary has no elements to format, which is
-    why ``type`` and a format spec cannot both be asked for.
+    the array is, and how the payload itself is formatted. Free text implies
+    the values form -- a shape/dtype summary replaces the payload, so there is
+    nothing left for a spec to format, which is why ``type`` and a format spec
+    cannot both be asked for.
     """
     if value in SHORT_ARRAYS:
         return {"short_arrays": SHORT_ARRAYS[value], "value_spec": None}
@@ -85,10 +86,10 @@ register_axis(
     )
 )
 
-#: How verbose the numeric payload is, or how to format each element.
+#: How verbose the numeric payload is, or how to format the payload.
 #:
 #: This is the axis that accepts free text: a spec's trailing run is a Python
-#: format spec applied per element. Holding it *on* the axis rather than beside
+#: format spec handed to `pvalue`. Holding it *on* the axis rather than beside
 #: it is what makes ``type-.2f`` an ordinary "value is set twice" error, rather
 #: than a hand-written consistency check between two keys describing one thing.
 register_axis(
