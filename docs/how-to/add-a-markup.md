@@ -27,12 +27,8 @@ A row is four required keys. The name becomes a keyword on the `markup` axis.
 
 ```
 
-| Key | Meaning |
-|---|---|
-| `_content` | format string wrapping each `content` fragment |
-| `wrap` | format string wrapping the whole rendered value |
-| `vsep` | separator between stacked values |
-| `escape` | callable applied to text, or `None` for no escaping |
+Those four keys are the required ones. [Markups](../reference/axes.md#markups)
+lists them with their meanings, and the optional keys as well.
 
 ## If you want your own separator text
 
