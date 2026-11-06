@@ -66,9 +66,9 @@ than `1 * 2`:
 For what you may put in a spec, see
 [Format spec grammar](../reference/spec-grammar.md).
 
-Register `pparts` in the same breath as the two methods. A `repr` that routes
-through the engine before the engine knows what the type is made of falls back
-to rendering with `str`, which calls `repr` again.
+Printing one before `pparts` is registered raises a `TypeError` naming the
+omission, rather than looping through the `str` fallback and back into
+`__repr__`.
 
 ## If your type's repr is a constructor expression
 
@@ -131,7 +131,9 @@ requirement.
 ## If your type registers no `pparts` at all
 
 It still renders — it degrades to `str(obj)`. Asking it for a value format
-spec raises, since it has declared no value a spec could format.
+spec raises, since it has declared no value a spec could format, and so does
+rendering a type whose own `str` or `repr` routes back into the engine, which
+would otherwise loop.
 
 ## See also
 

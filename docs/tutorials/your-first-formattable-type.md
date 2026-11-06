@@ -47,9 +47,18 @@ passes on whatever spec the caller wrote, which is how `f"{d:html}"` will
 reach the engine later. No `repr=False` is needed: a `__repr__` written in
 the class body survives the dataclass decorator.
 
-Both methods route through the engine, and the engine does not yet know what
-a `Duration` is made of, so do not print one until step 2 — an unregistered
-type renders through `str`, and `str` on this class is `__repr__` again.
+Both methods route through the engine, and the engine does not yet know what a
+`Duration` is made of. Printing one now fails, and the error says exactly what
+is missing:
+
+```python
+>>> Duration(3, 7)
+Traceback (most recent call last):
+    ...
+TypeError: Duration registers no pparts, and its str/repr renders through this engine, so rendering it would recurse (register one with @pparts.dispatch)
+
+```
+
 Telling the package what a duration is made of is the next step, and the only
 real code we write.
 
