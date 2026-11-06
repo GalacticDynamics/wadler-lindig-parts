@@ -571,7 +571,7 @@ def test_unregistered_type_degrades_to_str():
 
 
 def test_unregistered_type_rejects_a_value_spec():
-    """No elements to format: say so rather than answer a different request."""
+    """No value a spec could format: say so, not a different rendering."""
     with pytest.raises(TypeError, match="does not support a value format spec"):
         pspec(object(), ".2f")
 

@@ -4,7 +4,7 @@ A parts layer over [`wadler-lindig`][wl]: one engine behind `repr`, `str`,
 `__format__` and the representations Jupyter asks for.
 
 A type joins in by saying what it is *made of*, not how it renders. Register
-`pparts` and the type gets every markup, every value form and the per-element
+`pparts` and the type gets every markup, every value form and the value
 format spec — including axes added later by somebody else.
 
 ```python

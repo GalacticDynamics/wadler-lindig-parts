@@ -405,10 +405,11 @@ def pparts(
     object's `_repr_html_` in a notebook cell. `__pdoc__` already degrades this
     way through wadler-lindig's dataclass fallback.
 
-    A ``value_spec`` is the one thing this cannot degrade on. It formats
-    *elements*, and a type that has not said what its elements are has none to
-    format -- so silently dropping it would answer a specific request with a
-    different rendering. That is an error, not a fallback.
+    A ``value_spec`` is the one thing this cannot degrade on. It is applied
+    by `pvalue` to the value a type declares through `pparts`, and this path
+    renders through `str` instead -- so silently dropping the spec would answer
+    a specific request with a different rendering. That is an error, not a
+    fallback.
 
     Examples
     --------
@@ -421,7 +422,7 @@ def pparts(
         msg = (
             f"{type(obj).__name__} does not support a value format spec "
             f"({value_spec!r}): it registers no `pparts`, so it has no "
-            "elements to format"
+            "value a spec could format"
         )
         raise TypeError(msg)
     return (PPart("value", str(obj)),)
@@ -831,7 +832,7 @@ def _grammar_help() -> str:
     aliases = ", ".join(f"{k}={v}" for k, v in ALIASES.items())
     return (
         "a '-'-joined run of keywords, then an optional Python format spec "
-        "applied per element: " + ", ".join(parts) + f"; aliases: {aliases}"
+        "applied to the value: " + ", ".join(parts) + f"; aliases: {aliases}"
     )
 
 
@@ -934,7 +935,7 @@ def parse_spec(spec: str, /, *, obj: Any = None) -> Spec:
     >>> parse_spec("bare-html") == parse_spec("html-bare")
     True
 
-    A trailing value spec is applied per element:
+    A trailing value spec becomes the ``value`` axis:
 
     >>> parse_spec("mul-.3g")["value"]
     '.3g'
