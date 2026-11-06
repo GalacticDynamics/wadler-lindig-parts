@@ -39,6 +39,11 @@ on Python 3.10 through 3.15.
 
 <div class="grid cards" markdown>
 
+- **[Start](start/what-it-does.md)**
+
+    New here, or still deciding. What the package does, whether it fits your
+    type, and a quickstart that prints five ways in fifteen lines.
+
 - **[Tutorials](tutorials/index.md)**
 
     Start here if the package is new to you. Two lessons: build a type that
