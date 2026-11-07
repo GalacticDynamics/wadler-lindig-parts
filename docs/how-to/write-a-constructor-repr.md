@@ -132,7 +132,7 @@ is kept out of `array`:
 ...     data: Samples
 
 >>> @render_options.dispatch
-... def _(obj: Run, spec, /):
+... def _(obj: Run, /, *, spec):
 ...     return {"custom": short_samples} if spec["value"] == "type" else {}
 
 >>> Run(Samples())
@@ -142,11 +142,17 @@ Run(data=Samples(3))
 
 ```
 
-`repr`, `str` and `format` under `call` all use them. Two limits: they do not
-apply to `product` layouts, whose fragments come from `pparts`, and a
-`wl.pformat` that reaches the object from outside, as a field of another
-object, uses that outer call's options. Option names are not checked, because
-wadler-lindig forwards unknown ones to every `__pdoc__` it calls.
+`spec` is keyword-only, so plum dispatches on the object alone: a base class
+and a subclass can each register, however they annotate `spec`.
+
+`repr`, `str` and `format` under `call` all use the options. They may only add
+arguments the spec does not control: returning `width`, `indent` or an axis's
+own argument such as `short_arrays` raises, because it would override what the
+caller asked for. Two limits: the options do not apply to `product` layouts,
+whose fragments come from `pparts`, and a `wl.pformat` that reaches the object
+from outside, as a field of another object, uses that outer call's options.
+Other option names are not checked, because wadler-lindig forwards unknown
+ones to every `__pdoc__` it calls.
 
 ## If your type is a dataclass
 

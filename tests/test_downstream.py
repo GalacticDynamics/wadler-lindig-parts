@@ -19,6 +19,7 @@ from wadler_lindig_parts import (
     render,
     render_options,
     ReprMixin,
+    Spec,
     unregister_alias,
 )
 from wadler_lindig_parts.examples import Point, Version
@@ -329,7 +330,7 @@ def _holder(spec_string, options=_short_under_type):
         a: Any
 
     @render_options.dispatch
-    def _(obj: Holder, spec, /):
+    def _(obj: Holder, /, *, spec):
         return options(spec)
 
     return Holder
@@ -357,14 +358,53 @@ def test_render_options_stay_out_of_product_layout():
     assert "custom" not in seen
 
 
-def test_merge_order_is_axes_then_render_options_then_extra():
-    # ``short_arrays`` overrides the ``value`` axis's own: no clash error.
-    holder = _holder("call", lambda _: {"custom": _short_payload, "short_arrays": True})
+def test_extra_overrides_render_options():
+    holder = _holder("call", lambda _: {"custom": _short_payload})
     h = holder(_Payload())
     spec = parse_spec("call-width=200")
     assert render(h, spec).endswith(".Holder(a=payload[3])")
     out = render(h, spec, custom=lambda _: None)
     assert out.endswith(".Holder(a=Payload([1, 2, 3]))")
+
+
+@pytest.mark.parametrize("key", ["width", "indent", "short_arrays"])
+def test_render_options_may_not_set_what_the_spec_controls(key):
+    """A type's option must not silently beat the caller's spec."""
+    h = _holder("call", lambda _: {key: 1})(_Payload())
+    with pytest.raises(
+        ValueError, match=f"sets \\['{key}'\\], which the spec controls"
+    ):
+        repr(h)
+
+
+def test_render_options_must_return_a_mapping():
+    h = _holder("call", lambda _: None)(_Payload())
+    with pytest.raises(TypeError, match="returned NoneType, not a mapping"):
+        repr(h)
+
+
+def test_base_and_subclass_may_annotate_spec_differently():
+    """``spec`` is keyword-only, so plum dispatches on ``obj`` alone."""
+
+    @dataclasses.dataclass(repr=False)
+    class Base(ReprMixin):
+        __repr_spec__ = "call-width=200"
+        a: Any
+
+    @dataclasses.dataclass(repr=False)
+    class Sub(Base):
+        pass
+
+    @render_options.dispatch
+    def _(obj: Base, /, *, spec: Spec):
+        return {}
+
+    @render_options.dispatch
+    def _(obj: Sub, /, *, spec):
+        return {"custom": _short_payload}
+
+    assert repr(Base(_Payload())).endswith(".Base(a=Payload([1, 2, 3]))")
+    assert repr(Sub(_Payload())).endswith(".Sub(a=payload[3])")
 
 
 def test_an_outer_pformat_uses_its_own_options():
@@ -374,5 +414,5 @@ def test_an_outer_pformat_uses_its_own_options():
 
 
 def test_types_without_render_options_get_none():
-    assert dict(render_options(Point(1.0, 2.0), parse_spec("call"))) == {}
+    assert dict(render_options(Point(1.0, 2.0), spec=parse_spec("call"))) == {}
     assert pspec(Point(1.0, 2.0), "call") == "Point(x=1.0, y=2.0)"
