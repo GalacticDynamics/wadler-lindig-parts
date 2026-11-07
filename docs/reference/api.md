@@ -18,6 +18,8 @@ For the grammar these functions read, see
 
 ::: wadler_lindig_parts.pparts
 
+::: wadler_lindig_parts.render_options
+
 ::: wadler_lindig_parts.PPart
 
 ::: wadler_lindig_parts.PGroup

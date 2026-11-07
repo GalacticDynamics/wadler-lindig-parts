@@ -58,6 +58,7 @@ __all__ = (
     "register_alias",
     "register_axis",
     "render",
+    "render_options",
     "unregister_alias",
     "unregister_axis",
     "unwrap_math",
@@ -1055,6 +1056,12 @@ def render(
     one word must mean one thing for every type, but still need a route
     through so a caller's configuration can drive them.
 
+    Under ``call`` layout a type can also supply its own, by registering
+    `render_options`. Those may not set a key the spec already controls
+    (``width``, ``indent``, or an axis's own argument such as
+    ``short_arrays``): that would override what the caller asked for, so it
+    raises. ``extra`` comes last and overrides anything.
+
     Examples
     --------
     >>> from wadler_lindig_parts import parse_spec, render
@@ -1073,9 +1080,75 @@ def render(
     layout = spec["layout"]
     width = w if (w := spec.get("width")) is not None else width
     indent = i if (i := spec.get("indent")) is not None else indent
-    return _LAYOUTS[layout](
-        obj, spec, width=width, indent=indent, **_layout_kwargs(spec, layout), **extra
-    )
+    kw: dict[str, Any] = {
+        "width": width,
+        "indent": indent,
+        **_layout_kwargs(spec, layout),
+    }
+    if layout == "call":
+        kw.update(_checked_render_options(obj, spec, frozenset(kw)))
+    kw.update(extra)
+    return _LAYOUTS[layout](obj, spec, **kw)
+
+
+def _checked_render_options(
+    obj: Any, spec: Spec, taken: frozenset[str], /
+) -> Mapping[str, Any]:
+    """Return ``obj``'s `render_options`, refusing keys the spec controls."""
+    options = render_options(obj, spec=spec)
+    if not isinstance(options, Mapping):
+        msg = (
+            f"render_options for {type(obj).__name__} returned "
+            f"{type(options).__name__}, not a mapping (return {{}} for none)"
+        )
+        raise TypeError(msg)
+    clash = sorted(taken.intersection(options))
+    if clash:
+        msg = (
+            f"render_options for {type(obj).__name__} sets {clash}, which the "
+            "spec controls; a type's options may only add renderer arguments "
+            "that are not spec words"
+        )
+        raise ValueError(msg)
+    return options
+
+
+@dispatch.abstract
+def render_options(obj: Any, /, *, spec: Spec) -> Mapping[str, Any]:
+    """Return a type's own `wadler_lindig.pformat` options for ``spec``.
+
+    The extension point for ``call`` layout's renderer, as `pparts` is for
+    ``product``. Register a method for your type to pass options that are not
+    spec words, such as a ``custom=`` hook that lays out a value type its own
+    way. It receives the spec because the right options can depend on it:
+    wadler-lindig calls ``custom=`` on every object, whatever ``short_arrays``
+    says, so a hook that shortens arrays has to stay out of ``array``.
+
+    `render` asks for them, so ``repr``, ``str`` and ``format`` under ``call``
+    all get them. A ``wl.pformat`` call that reaches the object from outside
+    (as a field of another object) uses the outer call's options instead,
+    since a ``__pdoc__`` cannot change the options it was called with.
+
+    ``spec`` is keyword-only, so dispatch is on ``obj`` alone: a base class
+    and a subclass can each register a method, however they annotate
+    ``spec``, without plum finding them ambiguous. A key the spec already
+    controls raises `ValueError` (see `render`). Other keys are not checked:
+    wadler-lindig forwards unknown ones to every ``__pdoc__`` it calls.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import parse_spec, render_options
+    >>> dict(render_options(1.0, spec=parse_spec("call")))
+    {}
+
+    """
+    raise NotImplementedError  # pragma: no cover
+
+
+@dispatch  # type: ignore[no-redef]
+def render_options(obj: Any, /, *, spec: Spec) -> Mapping[str, Any]:  # noqa: ARG001
+    """No options: the default for a type that registers none."""
+    return MappingProxyType({})
 
 
 def _render_call(obj: Any, spec: Spec, /, *, width: int, indent: int, **kw: Any) -> str:

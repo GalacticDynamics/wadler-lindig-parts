@@ -53,6 +53,7 @@ from .engine import (
     register_alias,
     register_axis,
     render,
+    render_options,
     ReprMixin,
     REQUIRED_MARKUP_KEYS,
     Spec,

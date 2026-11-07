@@ -5,19 +5,24 @@ import pathlib
 import subprocess
 import sys
 import textwrap
+from typing import Any
 
 import pytest
 import wadler_lindig as wl
 
 from wadler_lindig_parts import (
+    parse_spec,
     PPart,
     pparts,
     pspec,
     register_alias,
+    render,
+    render_options,
     ReprMixin,
+    Spec,
     unregister_alias,
 )
-from wadler_lindig_parts.examples import Version
+from wadler_lindig_parts.examples import Point, Version
 
 
 def test_every_route_comes_from_one_pparts():
@@ -301,3 +306,113 @@ def test_call_type_with_its_own_pdoc_shows_its_repr_in_a_notebook():
 
     assert repr(Own(1)) == "Own(1)"
     assert Own(1)._repr_html_() is None
+
+
+class _Payload:
+    """Stands in for an array: wadler-lindig would print it in full."""
+
+    def __repr__(self) -> str:
+        return "Payload([1, 2, 3])"
+
+
+def _short_payload(obj):
+    return wl.TextDoc("payload[3]") if isinstance(obj, _Payload) else None
+
+
+def _short_under_type(spec):
+    return {"custom": _short_payload} if spec["value"] == "type" else {}
+
+
+def _holder(spec_string, options=_short_under_type):
+    @dataclasses.dataclass(repr=False)
+    class Holder(ReprMixin):
+        __repr_spec__ = spec_string
+        a: Any
+
+    @render_options.dispatch
+    def _(obj: Holder, /, *, spec):
+        return options(spec)
+
+    return Holder
+
+
+def test_render_options_reach_call_routes_and_can_depend_on_the_spec():
+    h = _holder("call-type-width=200")(_Payload())
+    assert repr(h).endswith(".Holder(a=payload[3])")
+    assert str(h) == repr(h)
+    assert f"{h:call-type-width=200}" == repr(h)
+    assert f"{h:call-array-width=200}".endswith(".Holder(a=Payload([1, 2, 3]))")
+
+
+def test_render_options_stay_out_of_product_layout():
+    """They are `wl.pformat` options, so a fragment route never sees them."""
+    holder = _holder("call")
+    seen = {}
+
+    @pparts.dispatch
+    def _(obj: holder, /, *, markup="text", **kw):
+        seen.update(kw)
+        return (PPart("value", "v"),)
+
+    assert pspec(holder(_Payload()), "type") == "v"
+    assert "custom" not in seen
+
+
+def test_extra_overrides_render_options():
+    holder = _holder("call", lambda _: {"custom": _short_payload})
+    h = holder(_Payload())
+    spec = parse_spec("call-width=200")
+    assert render(h, spec).endswith(".Holder(a=payload[3])")
+    out = render(h, spec, custom=lambda _: None)
+    assert out.endswith(".Holder(a=Payload([1, 2, 3]))")
+
+
+@pytest.mark.parametrize("key", ["width", "indent", "short_arrays"])
+def test_render_options_may_not_set_what_the_spec_controls(key):
+    """A type's option must not silently beat the caller's spec."""
+    h = _holder("call", lambda _: {key: 1})(_Payload())
+    with pytest.raises(
+        ValueError, match=f"sets \\['{key}'\\], which the spec controls"
+    ):
+        repr(h)
+
+
+def test_render_options_must_return_a_mapping():
+    h = _holder("call", lambda _: None)(_Payload())
+    with pytest.raises(TypeError, match="returned NoneType, not a mapping"):
+        repr(h)
+
+
+def test_base_and_subclass_may_annotate_spec_differently():
+    """``spec`` is keyword-only, so plum dispatches on ``obj`` alone."""
+
+    @dataclasses.dataclass(repr=False)
+    class Base(ReprMixin):
+        __repr_spec__ = "call-width=200"
+        a: Any
+
+    @dataclasses.dataclass(repr=False)
+    class Sub(Base):
+        pass
+
+    @render_options.dispatch
+    def _(obj: Base, /, *, spec: Spec):
+        return {}
+
+    @render_options.dispatch
+    def _(obj: Sub, /, *, spec):
+        return {"custom": _short_payload}
+
+    assert repr(Base(_Payload())).endswith(".Base(a=Payload([1, 2, 3]))")
+    assert repr(Sub(_Payload())).endswith(".Sub(a=payload[3])")
+
+
+def test_an_outer_pformat_uses_its_own_options():
+    """Documented limit: a ``__pdoc__`` cannot change its caller's options."""
+    h = _holder("call-type-width=200")(_Payload())
+    assert wl.pformat(h, width=200).endswith(".Holder(a=Payload([1, 2, 3]))")
+
+
+def test_types_without_render_options_get_none():
+    assert dict(render_options(Point(1.0, 2.0), spec=parse_spec("call"))) == {}
+    assert pspec(Point(1.0, 2.0), "call") == "Point(x=1.0, y=2.0)"
