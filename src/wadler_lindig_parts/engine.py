@@ -479,7 +479,7 @@ def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
 
     The document keeps its own line breaks under the parent's width and
     indentation. A markup with an escape gets the flat text escaped, as
-    `pvalue` does: HTML and LaTeX are laid out flat anyway.
+    `pvalue` does, so the document is laid out flat inside the markup.
     """
     short_arrays = kw.pop("short_arrays", "compact")
     doc = wl.pdoc(value, short_arrays=short_arrays, **kw)
@@ -1523,8 +1523,10 @@ class ReprMixin:
 
     Under a ``call`` spec a dataclass's ``__pdoc__`` from this mixin returns
     `fields_to_pdoc` over its `pfields`: wadler-lindig's own field layout, with
-    the fields a `pfields` method chose. It always returns a document, so a
-    subclass may wrap ``super().__pdoc__()``.
+    the fields a `pfields` method chose. A subclass that overrides
+    ``__pdoc__``, even only to wrap ``super().__pdoc__()``, makes that document
+    its form on every route: its parts layout, markups and value specs then
+    show the document. Register `pparts` too to keep a parts layout.
 
     The ``call`` behaviour follows the *class* spec, not the one a caller
     passes: ``f"{x:call}"`` asks the type for its ``__pdoc__``, and a mixin

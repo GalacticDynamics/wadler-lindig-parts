@@ -206,7 +206,8 @@ writes its own `__pdoc__`.
 Which answer the mixin gives depends on its own `__repr_spec__`, not on the
 spec a caller passes: `f"{x:call}"` asks the type, and only a type whose spec
 is `call` answers with its constructor. In a notebook such a type shows its
-`repr`, because a constructor expression has no HTML or LaTeX form:
+`repr`, because a constructor expression has no HTML or LaTeX form, unless the
+class sets `__notebook_parts__`:
 
 ```python
 >>> Span(0.0, 1.0)._repr_html_() is None

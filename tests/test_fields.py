@@ -174,14 +174,13 @@ class Parent(ReprMixin):
 
     def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
         # Merge, so a parent nested in another parent overrides its context.
-        kw = {**kw, "parent_u": self.u}
-        return fields_to_pdoc(self, pfields(self, **kw), **kw)
+        return fields_to_pdoc(self, pfields(self, **kw), **{**kw, "parent_u": self.u})
 
 
 @pparts.dispatch
 def _(obj: Parent, /, *, markup: str = "text", **kw: object) -> tuple:
-    kw = {**kw, "parent_u": obj.u}
-    return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+    to_kids = {**kw, "parent_u": obj.u}
+    return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **to_kids)
 
 
 def test_parent_context_keyword_reaches_child_pfields_on_both_routes() -> None:
@@ -562,3 +561,43 @@ def test_a_call_dataclass_with_its_own_pdoc_uses_it_on_every_route() -> None:
     assert repr(Angle(30.0)) == "Angle(30.0 deg)"
     assert pspec(Angle(30.0), "product") == "Angle(30.0 deg)"
     assert pspec(Box(Angle(30.0)), "product") == "Box(a=Angle(30.0 deg))"
+
+
+@dataclasses.dataclass(repr=False)
+class Node(ReprMixin):
+    """A base whose one pfields rule hides ``u`` when it matches the parent's."""
+
+    __repr_spec__ = "call"
+    u: str
+
+
+@pfields.dispatch
+def _(obj: Node, /, **kw: object) -> tuple[tuple[str, object], ...]:
+    rest = tuple((f.name, getattr(obj, f.name)) for f in dataclasses.fields(obj))
+    return tuple((k, v) for k, v in rest if not (k == "u" and kw.get("parent_u") == v))
+
+
+@dataclasses.dataclass(repr=False)
+class Group(Node):
+    """A container that shares its children's pfields rule, as a galax composite."""
+
+    kid: Node
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        # Its own fields with the incoming context; the children with its own.
+        return fields_to_pdoc(self, pfields(self, **kw), **{**kw, "parent_u": self.u})
+
+
+@pparts.dispatch
+def _(obj: Group, /, *, markup: str = "text", **kw: object) -> tuple:
+    return fields_to_parts(
+        obj, pfields(obj, **kw), markup=markup, **{**kw, "parent_u": obj.u}
+    )
+
+
+def test_a_container_sharing_its_childrens_rule_keeps_its_own_fields() -> None:
+    assert repr(Group("m", Node("s"))) == "Group(u='m', kid=Node(u='s'))"
+    assert repr(Group("s", Group("m", Node("m")))) == (
+        "Group(u='s', kid=Group(u='m', kid=Node()))"
+    )
+    assert pspec(Group("m", Node("m")), "product") == "Group(u='m', kid=Node())"

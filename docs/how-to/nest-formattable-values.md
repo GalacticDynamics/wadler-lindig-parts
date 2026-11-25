@@ -102,13 +102,13 @@ build the default layouts, so a container can add one keyword and keep them:
 ...     leaf: Leaf
 ...
 ...     def __pdoc__(self, **kw):
-...         kw = {**kw, "parent_unit": self.unit}
-...         return fields_to_pdoc(self, pfields(self, **kw), **kw)
+...         to_kids = {**kw, "parent_unit": self.unit}
+...         return fields_to_pdoc(self, pfields(self, **kw), **to_kids)
 
 >>> @pparts.dispatch
 ... def _(obj: Tree, /, *, markup="text", **kw):
-...     kw = {**kw, "parent_unit": obj.unit}
-...     return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+...     to_kids = {**kw, "parent_unit": obj.unit}
+...     return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **to_kids)
 
 >>> Tree("m", Leaf("m"))
 Tree(unit='m', leaf=Leaf())
@@ -117,9 +117,16 @@ Tree(unit='m', leaf=Leaf())
 
 ```
 
-Merge the keyword into `kw` as shown, rather than passing it beside `**kw`. A
-container nested inside another then replaces its parent's value instead of
-raising a duplicate-keyword error.
+The container picks its own fields with the context it received, and passes
+its own value on only to the children, so a container that shares its
+children's `pfields` rule still shows its own `unit`. Merge the keyword into a
+new dict as shown, rather than passing it beside `**kw`: a container nested in
+another then replaces its parent's value instead of raising a duplicate-keyword
+error.
+
+Overriding `__pdoc__` makes that document the type's form on every route, so a
+`ReprMixin` container that overrides it also registers `pparts`, as `Tree`
+does, to keep a parts layout.
 
 ## See also
 
