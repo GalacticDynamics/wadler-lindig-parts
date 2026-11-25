@@ -570,10 +570,10 @@ def test_unregistered_type_degrades_to_str():
     assert pspec(Opaque(), "html") == "<span>opaque</span>"
 
 
-def test_unregistered_type_rejects_a_value_spec():
-    """No value a spec could format: say so, not a different rendering."""
-    with pytest.raises(TypeError, match="does not support a value format spec"):
-        pspec(object(), ".2f")
+def test_unregistered_type_ignores_a_value_spec():
+    """No value a spec could format: the spec is ignored, as by any such value."""
+    o = object()
+    assert pspec(o, ".2f") == pspec(o, "product")
 
 
 def test_a_repr_routed_through_the_engine_without_pparts_does_not_recurse() -> None:

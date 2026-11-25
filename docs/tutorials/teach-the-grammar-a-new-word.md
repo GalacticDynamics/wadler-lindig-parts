@@ -54,18 +54,20 @@ returns different fragments when it is set:
 
 ```
 
-## Step 2: watch the word do nothing
+## Step 2: watch the word fail
 
 The behaviour exists, but nothing can ask for it yet. Try the spec anyway:
 
 ```python
 >>> f"{d:total}"
-'3:07'
+Traceback (most recent call last):
+    ...
+ValueError: invalid format spec 'total' for Duration: 'total' is not a valid Python format spec...
 
 ```
 
-Nothing happened — and notice that nothing complained either. Let's see what
-the engine made of our word:
+The engine refused the word before rendering anything. Let's see what it made
+of it:
 
 ```python
 >>> from wadler_lindig_parts import parse_spec
@@ -76,8 +78,8 @@ the engine made of our word:
 
 It did not recognise `total` as a keyword, so it fell through to the last
 thing a spec can be: a format spec for the values inside. It landed on the
-`value` axis, where our plain-text fragments ignore it. An unregistered word
-is not an error; it is just a word nothing is listening for.
+`value` axis. `total` is not a valid Python format spec, so `pspec` rejected it
+instead of passing it to values that would ignore it.
 
 ## Step 3: register the word
 
@@ -162,11 +164,13 @@ want exactly that. A tutorial should hand the session back as it found it:
 
 ```
 
-Back to the six the engine ships with. And `total` is just text again:
+Back to the six the engine ships with. And `total` is an unknown word again:
 
 ```python
 >>> f"{d:total}"
-'3:07'
+Traceback (most recent call last):
+    ...
+ValueError: invalid format spec 'total' for Duration: 'total' is not a valid Python format spec...
 
 ```
 

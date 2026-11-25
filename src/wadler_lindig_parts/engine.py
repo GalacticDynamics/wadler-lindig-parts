@@ -36,6 +36,7 @@ __all__ = (
     "ALIASES",
     "AXES",
     "Axis",
+    "Dataclass",
     "MARKUPS",
     "PGroup",
     "PPart",
@@ -67,6 +68,7 @@ __all__ = (
     "unwrap_math",
 )
 
+import abc
 import contextlib
 import dataclasses
 import html as _html
@@ -407,32 +409,17 @@ def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
 
 
 @dispatch  # type: ignore[no-redef]
-def pparts(
-    obj: Any,
-    /,
-    *,
-    markup: str = "text",
-    value_spec: str | None = None,
-    _nested: object = None,
-    **kw: Any,
-) -> tuple[Any, ...]:
-    """Lay out a dataclass by its fields, and fall back to `str` for the rest.
+def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
+    """Fall back to `str` for a type with no registration.
 
-    A dataclass instance with no registration gets the ``name=value`` layout
-    of `fields_to_parts`, over its `pfields`. The fields are its declared parts,
-    so markups and value specs reach each value.
+    This is a *display* path, so an unregistered type must degrade rather than
+    raise: without this method one unregistered field would poison an entire
+    object's `_repr_html_` in a notebook cell. `__pdoc__` already degrades this
+    way through wadler-lindig's dataclass fallback.
 
-    Anything else is a *display* path, so an unregistered type must degrade
-    rather than raise: without this method one unregistered field would poison
-    an entire object's `_repr_html_` in a notebook cell. `__pdoc__` already
-    degrades this way through wadler-lindig's dataclass fallback.
-
-    A ``value_spec`` is the one thing that cannot degrade at the top level. It
-    is applied by `pvalue` to the value a type declares through `pparts`, and
-    this path renders through `str` instead -- so silently dropping the spec
-    would answer a specific request with a different rendering. That is an
-    error, not a fallback. (Inside a dataclass layout, a field that cannot take
-    the spec prints as text; see `fields_to_parts`.)
+    A value spec is ignored here, as it is by any value that cannot take it.
+    `pspec` rejects a spec that is not a valid Python format spec before
+    anything renders, so a typo is still caught.
 
     Examples
     --------
@@ -441,17 +428,6 @@ def pparts(
     (PPart(role='value', text='<object object at ...>', kind='content', doc=None),)
 
     """
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return _dataclass_parts(obj, markup=markup, value_spec=value_spec, **kw)
-    if _nested is obj:
-        return _nested_value_parts(obj, markup=markup, value_spec=value_spec, **kw)
-    if value_spec is not None:
-        msg = (
-            f"{type(obj).__name__} does not support a value format spec "
-            f"({value_spec!r}): it registers no `pparts`, so it has no "
-            "value a spec could format"
-        )
-        raise TypeError(msg)
     return (PPart("value", _fallback_text(obj)),)
 
 
@@ -513,45 +489,6 @@ def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
     return doc_part("value", doc)
 
 
-def _dataclass_parts(
-    obj: Any, /, *, markup: str, value_spec: str | None, **kw: Any
-) -> tuple[Any, ...]:
-    """The field layout of a dataclass instance, over its `pfields`."""
-    return fields_to_parts(
-        obj,
-        pfields(obj, value_spec=value_spec, **kw),
-        markup=markup,
-        value_spec=value_spec,
-        **kw,
-    )
-
-
-def _nested_value_parts(
-    value: Any, /, *, markup: str, value_spec: str | None = None, **kw: Any
-) -> tuple[Any, ...]:
-    """A field value with no parts of its own, inside a field layout.
-
-    A non-integer number takes a value spec through ``format``; one that
-    rejects a spec a float accepts (a `fractions.Fraction` under ``.3``) falls
-    back, and a spec no float accepts raises, so a typo is not swallowed.
-    Anything else renders as wadler-lindig lays it out (its ``repr``, so a
-    string is quoted): ``format`` would print ``True`` as ``1.00``, cut
-    ``".3"`` from a string, or read the spec as a date's strftime pattern.
-    """
-    # issubclass on the type, so pyright does not narrow ``value``.
-    t = type(value)
-    if (
-        value_spec is not None
-        and issubclass(t, numbers.Number)
-        and not issubclass(t, numbers.Integral)
-    ):
-        try:
-            return (PPart("value", format(value, value_spec)),)
-        except (TypeError, ValueError):
-            format(0.0, value_spec)  # raises if no float accepts it either
-    return (_pdoc_part(value, markup=markup, **kw),)
-
-
 def fields_to_parts(
     obj: Any, fields: Iterable[tuple[str, Any]], /, *, markup: str = "text", **kw: Any
 ) -> tuple[Any, ...]:
@@ -559,10 +496,8 @@ def fields_to_parts(
 
     The parts counterpart of `fields_to_pdoc`, and what a dataclass with no
     `pparts` of its own renders as. Each value goes through `pparts` with
-    ``markup`` and ``**kw``, so a spec reaches the values inside. A value with
-    no parts of its own is laid out by wadler-lindig, as its ``repr``, and
-    takes a value spec only if it is a non-integer number. A value that
-    refuses the value spec with a `TypeError` is rendered again without it.
+    ``markup`` and ``**kw``, like the child of any container, so a markup or a
+    value spec reaches the values inside.
 
     Call it from your own `pparts` to pass a context keyword to the children,
     which receive it in their `pparts` and `pfields`.
@@ -585,19 +520,7 @@ def fields_to_parts(
             if i:
                 out.append(PPart("_field_comma", ", ", "sep"))
             out.append(PPart("_field_key", f"{name}=", "sep"))
-            # ``_nested`` names the field value, so the fallbacks treat it, and
-            # not a grandchild a registered method forwards ``**kw`` to, as a
-            # field. plum's dispatch decides whether it has parts of its own.
-            field_kw = {**kw, "_nested": value}
-            try:
-                parts = pparts(value, markup=markup, **field_kw)
-            except TypeError:
-                # A value that refuses the value spec (a unit system) prints
-                # without it; a mistyped spec still fails on the numbers.
-                if field_kw.pop("value_spec", None) is None:
-                    raise
-                parts = pparts(value, markup=markup, **field_kw)
-            out.append(PGroup(name, parts))
+            out.append(PGroup(name, pparts(value, markup=markup, **kw)))
         out.append(PPart("_field_close", ")", "sep"))
         return tuple(out)
 
@@ -1444,6 +1367,7 @@ def pspec(obj: Any, spec: str, /, *, width: int = 88) -> str:
     if not spec:
         return str(obj)
     parsed = parse_spec(spec, obj=obj)
+    _check_free_text(spec, parsed, obj)
     try:
         out = render(obj, parsed, width=width)
     except ValueError as e:
@@ -1550,12 +1474,13 @@ def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
     return tuple(out)
 
 
-def _check_repr_spec(spec: str, parsed: Spec, /) -> None:
+def _check_free_text(spec: str, parsed: Spec, /, obj: Any = None) -> None:
     """Reject a spec whose free-text remainder is not a Python format spec.
 
     `parse_spec` sends any word that is not a keyword to the value axis, so a
-    typo or an alias registered too late would otherwise survive until the
-    first print.
+    typo or an alias registered too late would otherwise survive: a value that
+    cannot take a spec ignores it, and a ``__repr_spec__`` is not used until
+    the first print.
     """
     text = _free_text(parsed)
     if text is None:
@@ -1570,7 +1495,7 @@ def _check_repr_spec(spec: str, parsed: Spec, /) -> None:
         else:
             return
     msg = f"{text!r} is not a valid Python format spec"
-    raise bad_spec(None, spec, msg) from first
+    raise bad_spec(obj, spec, msg) from first
 
 
 class ReprMixin:
@@ -1621,7 +1546,7 @@ class ReprMixin:
     def __init_subclass__(cls, **kw: Any) -> None:
         super().__init_subclass__(**kw)
         parsed = parse_spec(cls.__repr_spec__)
-        _check_repr_spec(cls.__repr_spec__, parsed)
+        _check_free_text(cls.__repr_spec__, parsed)
         cls._repr_spec_parsed = parsed
 
     def __repr__(self) -> str:
@@ -1691,15 +1616,7 @@ def _repr_is_constructor(obj: ReprMixin, /) -> bool:
 
 
 @dispatch  # type: ignore[no-redef]
-def pparts(
-    obj: ReprMixin,
-    /,
-    *,
-    markup: str = "text",
-    value_spec: str | None = None,
-    _nested: object = None,
-    **kw: Any,
-) -> tuple[Any, ...]:
+def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
     """Refuse a `ReprMixin` type that registered no `pparts` of its own.
 
     Without this the generic `str` fallback would call back into the mixin's
@@ -1707,20 +1624,112 @@ def pparts(
     spec is ``call``: it asked for its constructor form, its fields are its
     parts, and it gets the `fields_to_parts` layout. A mixin type with a parts
     spec still raises, so a missing registration cannot render plausibly. A
-    ``call`` type with a ``__pdoc__`` of its own renders as its ``repr``.
+    ``call`` type with a ``__pdoc__`` of its own renders as that document.
     """
     if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
-        return _dataclass_parts(obj, markup=markup, value_spec=value_spec, **kw)
+        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
     if _repr_is_constructor(obj):
-        if value_spec is not None and _nested is not obj:
-            msg = (
-                f"{type(obj).__name__} does not support a value format spec: "
-                "its repr is a constructor expression with no parts to format"
-            )
-            raise TypeError(msg)
+        kw.pop("value_spec", None)  # a constructor expression has no value to format
         return (_pdoc_part(obj, markup=markup, **kw),)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "
         "(register one with @pparts.dispatch)"
     )
     raise TypeError(msg)
+
+
+# ---------------------------------------------------------------------------
+# Ordinary registrations for common values
+
+
+class Dataclass(abc.ABC):
+    """Every dataclass instance that is not a `ReprMixin`, as a dispatch type.
+
+    `pparts` is registered for it like any other type, so a dataclass with no
+    `pparts` of its own is laid out by its fields, and a type that registers
+    its own method wins by ordinary dispatch. `ReprMixin` dataclasses are left
+    to the mixin's own method, so the two never match the same object.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import Dataclass
+    >>> from wadler_lindig_parts.examples import Point
+    >>> isinstance(Point(1.0, 2.0), Dataclass), isinstance(1.0, Dataclass)
+    (True, False)
+
+    """
+
+    @classmethod
+    def __subclasshook__(cls, other: type, /) -> bool:
+        return dataclasses.is_dataclass(other) and not issubclass(other, ReprMixin)
+
+
+@pparts.dispatch  # type: ignore[misc]
+def _pparts_dataclass(
+    obj: Dataclass, /, *, markup: str = "text", **kw: Any
+) -> tuple[Any, ...]:
+    """Lay out a dataclass as ``Name(field=value, ...)`` over its `pfields`.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import parts_to_markup, pparts
+    >>> from wadler_lindig_parts.examples import Point
+    >>> parts_to_markup(pparts(Point(1.0, 2.0)))
+    'Point(x=1.0, y=2.0)'
+
+    """
+    return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+
+
+@pparts.dispatch  # type: ignore[misc]
+def _pparts_str(obj: str, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
+    """A string, quoted as in a ``repr``, so ``"a, b=c"`` reads as one value.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import parts_to_markup, pparts
+    >>> parts_to_markup(pparts("a, b=c"))
+    "'a, b=c'"
+
+    """
+    return (PPart("value", repr(obj)),)
+
+
+class _Fractional(abc.ABC):
+    """A number that is not an integer: the values a value spec formats.
+
+    An integer or a bool is left out: ``format(True, ".2f")`` is ``1.00``.
+    """
+
+    @classmethod
+    def __subclasshook__(cls, other: type, /) -> bool:
+        return issubclass(other, numbers.Number) and not issubclass(
+            other, numbers.Integral
+        )
+
+
+@pparts.dispatch  # type: ignore[misc]
+def _pparts_number(
+    obj: _Fractional,
+    /,
+    *,
+    markup: str = "text",
+    value_spec: str | None = None,
+    **kw: Any,
+) -> tuple[Any, ...]:
+    """A number, formatted by the value spec when it can take one.
+
+    A number that rejects the spec (a `fractions.Fraction` under ``.3``)
+    prints as it would without one.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import parts_to_markup, pparts
+    >>> parts_to_markup(pparts(1.23456, value_spec=".2f"))
+    '1.23'
+
+    """
+    if value_spec is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            return (PPart("value", format(obj, value_spec)),)
+    return (PPart("value", str(obj)),)

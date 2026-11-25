@@ -22,6 +22,8 @@ For the grammar these functions read, see
 
 ::: wadler_lindig_parts.pfields
 
+::: wadler_lindig_parts.Dataclass
+
 ::: wadler_lindig_parts.PPart
 
 ::: wadler_lindig_parts.PGroup

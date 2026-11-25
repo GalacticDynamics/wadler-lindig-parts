@@ -35,6 +35,7 @@ from .engine import (
     AXES,
     Axis,
     bad_spec,
+    Dataclass,
     doc_part,
     doc_to_str,
     fields_to_parts,

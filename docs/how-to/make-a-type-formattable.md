@@ -157,17 +157,20 @@ value is its default object. To change that for one type, register a `pfields`
 method; [How to write a constructor-form repr](write-a-constructor-repr.md)
 shows one.
 
-A field that is a dataclass gets the same layout and the same spec. Of the
-other values with no `pparts` of their own, only a non-integer number takes a
-value spec. Anything else prints as its `repr` instead of failing, so a string
-prints in quotes.
+The layout is an ordinary `pparts` registration on `Dataclass`, a dispatch
+type every dataclass that is not a `ReprMixin` matches. A `pparts` method of
+your own for a dataclass therefore replaces the layout by ordinary dispatch.
+The values inside are rendered the same way: strings and non-integer numbers
+have registrations of their own (a string prints in quotes, a number takes the
+value spec), and anything unregistered degrades to its `str`.
 
 ## If your type registers no `pparts` at all
 
 A dataclass gets the field layout above. Anything else still renders: it
-degrades to `str(obj)`. Asking it for a value format spec raises, since it has
-declared no value a spec could format, and so does rendering a type whose own
-`str` or `repr` routes back into the engine, which would otherwise loop.
+degrades to `str(obj)`. A value spec it cannot take is ignored, as it is by any
+such value, but a spec that is not a valid Python format spec raises before
+anything renders. Rendering a type whose own `str` or `repr` routes back into
+the engine raises too, since it would otherwise loop.
 
 ## See also
 

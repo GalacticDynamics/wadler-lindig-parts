@@ -42,28 +42,39 @@ wants it hidden uses one shared default object instead. A field that has no
 value yet (`init=False`, not set) prints as `<uninitialised>`, as wadler-lindig
 prints it.
 
+## Ordinary registrations, one rule
+
+The layout is not a special case inside the engine's fallback. It is a
+`pparts` method on `Dataclass`, an ABC whose `__subclasshook__` matches every
+dataclass that is not a `ReprMixin` (the mixin has its own method, and the two
+must not match the same object). A type that registers its own `pparts` wins by
+ordinary dispatch. Each field value goes through `pparts` like the child of any
+container, so a dataclass and a hand-written container render the same value
+the same way.
+
+Two more ordinary registrations cover the values a field layout most often
+holds:
+
+- `str` prints quoted, as in a `repr`, so `"a, b=c"` cannot read as two fields.
+- A non-integer number (an ABC over `numbers.Number` minus `numbers.Integral`)
+  is formatted by the value spec. A number that rejects the spec (a `Fraction`
+  under `.3`) prints as it would without one. An `int` or `bool` is left
+  alone: `format(True, ".2f")` is `1.00`.
+
+Anything unregistered degrades to its `str`, as in 0.3.
+
 ## Where a value spec goes
 
-A value spec reaches a field's value when the value has its own `pparts`, is a
-dataclass, or is a non-integer number that `format(value, spec)` accepts. A
-number that rejects a spec a float accepts (a `Fraction` under `.3`) falls back
-to its `repr`; a spec no float accepts raises, so a typo is not swallowed. A
-value whose own `pparts` refuses a value spec with a `TypeError` (unxt's unit
-systems do) is rendered again without it, so `f"{pot:.2e}"` works on a galax
-potential that holds one. Any other value prints as
-its `repr`: `format` would print `True` as `1.00`, cut a string to the spec's
-precision, or read the spec as a date's strftime pattern. So `.2f` formats the
-floats in a dataclass and leaves the rest alone, instead of failing on them or
-changing them.
+A value spec formats the values that can take it and is ignored by every other
+value, wherever it sits. `pspec` rejects a spec that is not a valid Python
+format spec before anything renders, so a typo such as `latx` still raises. A
+spec that is valid but changes nothing (on an object with no numbers) is a
+silent no-op; whether that should raise is open in issue #29, because comparing
+the output with and without the spec would also flag correct requests
+(`.1f` on `1.5`).
 
-A value with no parts of its own prints as wadler-lindig lays it out: its
-`repr`, with line breaks under the parent's width, escaped for the markup, and
-arrays summarised as `wl.pformat` does under the same `value` setting. So a
-string prints in quotes and `"a, b=c"` cannot read as two fields. A `call` mixin
-type that is not a dataclass nests as its own `__pdoc__`, unless it registers
-`pparts`. Each field goes through ordinary `pparts` dispatch, so a registration
-on a parametric type such as `list[X]` is found. At the top level, a
-non-dataclass with no `pparts` still raises on a value spec, as before.
+This replaces 0.3's rule that an unregistered object given a value spec raises.
+That rule made a container fail as soon as one field could not take the spec.
 
 ## Boundaries
 
@@ -73,6 +84,13 @@ non-dataclass with no `pparts` still raises on a value spec, as before.
 - A plain dataclass whose hand-written `__repr__` routes through the engine now
   renders its fields instead of raising the recursion error. The recursion guard
   still covers every other type.
+- Changes visible to 0.3 users, all in parts-layout output: a string prints
+  quoted, a non-integer number takes a value spec at the top level, an
+  unregistered object ignores a value spec instead of raising, and a free-text
+  spec that no float, int or str accepts (a strftime pattern) raises up front.
+  `repr`, `str` and `wl.pformat` are unchanged.
+- unxt's unit systems raise on a value spec today; with this release they
+  should ignore it instead, so a container holding one can take `.2e`.
 - A dataclass that contains itself through its fields raises a `TypeError` that
   says so. A cycle through a list or dict prints wadler-lindig's `<recursive>`.
 - The layout's own parts use private roles (`_field_open`, `_field_key`,

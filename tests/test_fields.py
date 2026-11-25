@@ -257,11 +257,9 @@ def test_value_spec_formats_only_non_integer_numbers() -> None:
         c: Color
         flag: bool
 
-    m = M(1.23456, datetime.date(2024, 1, 2), "galactic", Color.RED, True)
-    want = (
-        "M(x=1.23, when=datetime.date(2024, 1, 2), name='galactic', "
-        "c=<Color.RED: 1>, flag=True)"
-    )
+    when = datetime.date(2024, 1, 2)
+    m = M(1.23456, when, "galactic", Color.RED, True)
+    want = f"M(x=1.23, when={when}, name='galactic', c={Color.RED}, flag=True)"
     assert pspec(m, ".2f") == want
     assert pspec(m, ".3") == want
 
@@ -298,16 +296,14 @@ def test_a_str_subclass_with_its_own_pparts_uses_it() -> None:
     assert pspec(H(Sym("a"), "a"), "product") == "H(s=alpha, t='a')"
 
 
-def test_fields_without_pparts_print_their_repr() -> None:
+def test_fields_without_pparts_print_their_str() -> None:
     import pathlib
 
     @dataclasses.dataclass
     class Misc:
         p: pathlib.PurePosixPath
 
-    assert pspec(Misc(pathlib.PurePosixPath("a, b=c")), "product") == (
-        "Misc(p=PurePosixPath('a, b=c'))"
-    )
+    assert pspec(Misc(pathlib.PurePosixPath("a/b")), "product") == "Misc(p=a/b)"
 
 
 class Ctor(ReprMixin):
@@ -330,14 +326,12 @@ def test_call_mixin_non_dataclass_field_prints_its_repr() -> None:
     assert pspec(W(Ctor(3)), "product") == "W(t=Ctor(3))"
 
 
-def test_a_spec_the_child_accepts_is_not_rejected_by_the_parent() -> None:
+def test_a_spec_that_is_not_a_python_format_spec_raises_up_front() -> None:
     import datetime
 
-    @dataclasses.dataclass
-    class W:
-        t: Term
-
-    assert pspec(W(Term(datetime.date(2024, 1, 2), "x")), "%Y") == "W(t=2024 x)"
+    # A strftime pattern is not a format spec a number accepts.
+    with pytest.raises(ValueError, match="not a valid Python format spec"):
+        pspec(Term(datetime.date(2024, 1, 2), "x"), "%Y")
 
 
 class Wide(ReprMixin):
@@ -369,9 +363,8 @@ def test_nested_call_mixin_follows_the_parent_layout() -> None:
     assert pspec(Box("bx", w), "product-width=200") == flat
 
 
-def test_call_mixin_rejects_a_value_spec_at_top_level() -> None:
-    with pytest.raises(TypeError, match="value format spec"):
-        pspec(Wide("a"), ".2f")
+def test_call_mixin_ignores_a_value_spec() -> None:
+    assert pspec(Wide("a"), ".2f") == pspec(Wide("a"), "product")
 
 
 class Marker:
@@ -399,18 +392,7 @@ def test_a_number_that_rejects_the_spec_falls_back() -> None:
         q: fractions.Fraction
         x: float
 
-    assert pspec(F(fractions.Fraction(1, 3), 1.23456), ".3") == (
-        "F(q=Fraction(1, 3), x=1.23)"
-    )
-
-
-def test_nested_values_keep_wadler_lindig_layout() -> None:
-    @dataclasses.dataclass
-    class Holder:
-        xs: list
-
-    out = pspec(Holder(["y" * 30] * 5), "product-width=40")
-    assert "\n" in out
+    assert pspec(F(fractions.Fraction(1, 3), 1.23456), ".3") == "F(q=1/3, x=1.23)"
 
 
 class Parted(ReprMixin):
@@ -481,28 +463,52 @@ def test_only_the_field_value_counts_as_nested() -> None:
 
 
 class System:
-    """A registered type that refuses a value spec, like unxt's unit systems."""
+    """A registered type with no value to format, like a unit system."""
 
 
 @pparts.dispatch
-def _(
-    obj: System, /, *, markup: str = "text", value_spec: str | None = None, **kw: object
-) -> tuple:
-    if value_spec is not None:
-        msg = "System does not support a value format spec"
-        raise TypeError(msg)
+def _(obj: System, /, *, markup: str = "text", **kw: object) -> tuple:
     return (PPart("system", "galactic"),)
 
 
-def test_a_field_that_refuses_the_spec_renders_without_it() -> None:
+def test_a_field_with_no_value_to_format_ignores_the_spec() -> None:
     @dataclasses.dataclass
     class Pot:
         m: float
         units: System
 
     assert pspec(Pot(1.23456, System()), ".2f") == "Pot(m=1.23, units=galactic)"
-    with pytest.raises(TypeError, match="does not support a value format spec"):
-        pspec(System(), ".2f")
+    assert pspec(System(), ".2f") == "galactic"
+
+
+# ---------------------------------------------------------------------------
+# Ordinary registrations
+
+
+def test_a_registration_on_a_dataclass_beats_the_layout() -> None:
+    @dataclasses.dataclass
+    class Own:
+        a: int
+
+    @pparts.dispatch
+    def _(obj: Own, /, *, markup: str = "text", **kw: object) -> tuple:
+        return (PPart("own", "mine"),)
+
+    assert pspec(Own(1), "product") == "mine"
+
+
+def test_dataclass_type_excludes_reprmixin() -> None:
+    from wadler_lindig_parts import Dataclass
+
+    assert isinstance(Point(1.0, 2.0), Dataclass)
+    assert not isinstance(C(1.0), Dataclass)
+    assert not isinstance(Point, Dataclass)
+
+
+def test_strings_and_numbers_are_ordinary_registrations() -> None:
+    assert pspec("a, b=c", "product") == "'a, b=c'"
+    assert pspec(1.23456, ".2f") == "1.23"
+    assert pspec(3, ".2f") == "3"
 
 
 def test_layout_roles_do_not_collide_with_markup_role_overrides() -> None:
