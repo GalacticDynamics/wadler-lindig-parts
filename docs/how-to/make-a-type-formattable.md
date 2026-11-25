@@ -168,8 +168,8 @@ value is its default object. Register a method to change that for one type:
 ```
 
 Of the values with no `pparts` of their own, only a non-integer number takes a
-value spec. Anything else prints as its text instead of failing, and a string
-prints in quotes, as it does in a `repr`.
+value spec. Anything else prints as its `repr` instead of failing, so a string
+prints in quotes.
 
 ## If your type registers no `pparts` at all
 

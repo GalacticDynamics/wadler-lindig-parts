@@ -69,6 +69,7 @@ __all__ = (
 
 import contextlib
 import dataclasses
+import functools
 import html as _html
 import numbers
 import re
@@ -437,7 +438,11 @@ def pparts(
     """
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return fields_to_parts(
-            obj, pfields(obj, **kw), markup=markup, value_spec=value_spec, **kw
+            obj,
+            pfields(obj, value_spec=value_spec, **kw),
+            markup=markup,
+            value_spec=value_spec,
+            **kw,
         )
     if value_spec is not None:
         msg = (
@@ -492,32 +497,25 @@ def _no_reentry(obj: Any, msg: str, /) -> Iterator[None]:
         seen.discard(key)
 
 
-def _takes_value_spec(value: Any, /) -> bool:
-    """Whether ``value`` declares parts a value spec can reach.
+def _has_own_parts(value: Any, /) -> bool:
+    """Whether ``value`` renders through parts of its own.
 
-    True for a dataclass instance (its fields carry the spec on) and for any
-    type with a `pparts` method more specific than the `Any` fallback.
+    True for a dataclass instance (the field layout) and for any type with a
+    `pparts` method more specific than the `Any` fallback.
     """
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return True
     # `pparts` is a plum Function at runtime; its static type is the function.
     function: Any = pparts
-    method, _ = function.resolve_method(Signature(type(value)))
+    return _resolves_past_any(type(value), len(function.methods))
+
+
+@functools.lru_cache(maxsize=1024)
+def _resolves_past_any(t: type, n_methods: int, /) -> bool:  # noqa: ARG001
+    """`_has_own_parts` for a type, cached until a `pparts` method is added."""
+    function: Any = pparts
+    method, _ = function.resolve_method(Signature(t))
     return method is not function.resolve_method(Signature(object))[0]
-
-
-def _format_spec_error(text: str, /) -> ValueError | None:
-    """The error if no float, int or str accepts ``text`` as a format spec."""
-    # Elements need not be floats, so any probe type that accepts it will do.
-    first = None
-    for probe in (0.0, 0, ""):
-        try:
-            format(probe, text)
-        except ValueError as e:
-            first = first or e
-        else:
-            return None
-    return first
 
 
 def _field_parts(
@@ -525,15 +523,16 @@ def _field_parts(
 ) -> tuple[Any, ...]:
     """One field's parts, with the value spec only where the value can take it.
 
-    A string is quoted, as in a ``repr``, so ``"a, b=c"`` cannot read as two
-    fields. Of the values with no `pparts`, only a non-integer number takes a
-    value spec: ``format`` would print ``True`` as ``1.00``, cut ``".3"`` from a
-    string, or read the spec as a date's strftime pattern.
+    A value with no parts of its own prints as its `pvalue`, which is its
+    ``repr`` escaped for ``markup``, so ``"a, b=c"`` cannot read as two fields.
+    Of those values only a non-integer number takes a value spec: ``format``
+    would print ``True`` as ``1.00``, cut ``".3"`` from a string, or read the
+    spec as a date's strftime pattern. A float rejects a mistyped spec.
     """
-    if _takes_value_spec(value):
+    from .generic import pvalue  # generic imports this module
+
+    if _has_own_parts(value):
         return pparts(value, markup=markup, value_spec=value_spec, **kw)
-    if isinstance(value, str):
-        return (PPart("value", repr(value)),)
     # issubclass on the type, so pyright does not narrow ``value`` for `pparts`.
     t = type(value)
     if (
@@ -541,9 +540,9 @@ def _field_parts(
         and issubclass(t, numbers.Number)
         and not issubclass(t, numbers.Integral)
     ):
-        with contextlib.suppress(TypeError, ValueError):
+        with contextlib.suppress(TypeError):
             return (PPart("value", format(value, value_spec)),)
-    return pparts(value, markup=markup, **kw)
+    return (doc_part("value", pvalue(value, markup=markup, **kw)),)
 
 
 def fields_to_parts(
@@ -556,8 +555,8 @@ def fields_to_parts(
     with ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside.
     A value spec goes to a value only if it can take it: a value with its own
     `pparts`, a dataclass, or a non-integer number. Any other value prints as
-    its text, and a string in quotes, so ``f"{x:.2f}"`` neither fails on nor
-    changes a string field. A spec that no value could accept raises.
+    its ``repr``, so ``f"{x:.2f}"`` neither fails on nor changes a string
+    field.
 
     Call it from your own `pparts` to pass a context keyword to the children,
     which receive it in their `pparts` and `pfields`.
@@ -571,10 +570,6 @@ def fields_to_parts(
     'Point(x=1.0)'
 
     """
-    if (spec := kw.get("value_spec")) is not None and (
-        error := _format_spec_error(spec)
-    ) is not None:
-        raise error
     msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
     with _no_reentry(obj, msg):
         out: list[Any] = [PPart("name", f"{type(obj).__name__}(", "sep")]
@@ -1542,10 +1537,19 @@ def _check_repr_spec(spec: str, parsed: Spec, /) -> None:
     first print.
     """
     text = _free_text(parsed)
-    if text is None or (error := _format_spec_error(text)) is None:
+    if text is None:
         return
+    # Elements need not be floats, so any probe type that accepts it will do.
+    first = None
+    for probe in (0.0, 0, ""):
+        try:
+            format(probe, text)
+        except ValueError as e:
+            first = first or e
+        else:
+            return
     msg = f"{text!r} is not a valid Python format spec"
-    raise bad_spec(None, spec, msg) from error
+    raise bad_spec(None, spec, msg) from first
 
 
 class ReprMixin:
@@ -1670,10 +1674,14 @@ def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, 
     ``__str__`` and recurse forever. The one exception is a dataclass whose
     spec is ``call``: it asked for its constructor form, its fields are its
     parts, and it gets the `fields_to_parts` layout. A mixin type with a parts
-    spec still raises, so a missing registration cannot render plausibly.
+    spec still raises, so a missing registration cannot render plausibly. A
+    ``call`` type with a ``__pdoc__`` of its own renders as its ``repr``.
     """
-    if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
-        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+    if obj._repr_spec_parsed["layout"] == "call":
+        if dataclasses.is_dataclass(obj):
+            return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+        if type(obj).__pdoc__ is not ReprMixin.__pdoc__:
+            return (PPart("value", repr(obj)),)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "
         "(register one with @pparts.dispatch)"

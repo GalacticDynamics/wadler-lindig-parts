@@ -257,7 +257,10 @@ def test_value_spec_formats_only_non_integer_numbers() -> None:
         flag: bool
 
     m = M(1.23456, datetime.date(2024, 1, 2), "galactic", Color.RED, True)
-    want = "M(x=1.23, when=2024-01-02, name='galactic', c=1, flag=True)"
+    want = (
+        "M(x=1.23, when=datetime.date(2024, 1, 2), name='galactic', "
+        "c=<Color.RED: 1>, flag=True)"
+    )
     assert pspec(m, ".2f") == want
     assert pspec(m, ".3") == want
 
@@ -292,3 +295,45 @@ def test_a_str_subclass_with_its_own_pparts_uses_it() -> None:
         t: str
 
     assert pspec(H(Sym("a"), "a"), "product") == "H(s=alpha, t='a')"
+
+
+def test_fields_without_pparts_print_their_repr() -> None:
+    import pathlib
+
+    @dataclasses.dataclass
+    class Misc:
+        p: pathlib.PurePosixPath
+
+    assert pspec(Misc(pathlib.PurePosixPath("a, b=c")), "product") == (
+        "Misc(p=PurePosixPath('a, b=c'))"
+    )
+
+
+class Ctor(ReprMixin):
+    """A call-spec mixin type that is not a dataclass, with its own __pdoc__."""
+
+    __repr_spec__ = "call"
+
+    def __init__(self, n: int) -> None:
+        self.n = n
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        return wl.TextDoc(f"Ctor({self.n})")
+
+
+def test_call_mixin_non_dataclass_field_prints_its_repr() -> None:
+    @dataclasses.dataclass
+    class W:
+        t: Ctor
+
+    assert pspec(W(Ctor(3)), "product") == "W(t=Ctor(3))"
+
+
+def test_a_spec_the_child_accepts_is_not_rejected_by_the_parent() -> None:
+    import datetime
+
+    @dataclasses.dataclass
+    class W:
+        t: Term
+
+    assert pspec(W(Term(datetime.date(2024, 1, 2), "x")), "%Y") == "W(t=2024 x)"
