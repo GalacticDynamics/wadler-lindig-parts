@@ -410,3 +410,31 @@ def test_nested_values_keep_wadler_lindig_layout() -> None:
 
     out = pspec(Holder(["y" * 30] * 5), "product-width=40")
     assert "\n" in out
+
+
+class Parted(ReprMixin):
+    """A call-spec non-dataclass with its own __pdoc__ *and* its own pparts."""
+
+    __repr_spec__ = "call"
+    __notebook_parts__ = True
+
+    def __init__(self, v: float) -> None:
+        self.v = v
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        return wl.TextDoc(f"Parted({self.v})")
+
+
+@pparts.dispatch
+def _(
+    obj: Parted, /, *, markup: str = "text", value_spec: str | None = None, **kw: object
+) -> tuple:
+    return (PPart("v", format(obj.v, value_spec or "")),)
+
+
+def test_a_call_mixin_with_its_own_pparts_uses_them_as_a_field() -> None:
+    @dataclasses.dataclass
+    class D:
+        x: Parted
+
+    assert pspec(D(Parted(1.23456)), ".2f") == "D(x=1.23)"

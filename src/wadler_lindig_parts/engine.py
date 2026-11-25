@@ -408,7 +408,13 @@ def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
 
 @dispatch  # type: ignore[no-redef]
 def pparts(
-    obj: Any, /, *, markup: str = "text", value_spec: str | None = None, **kw: Any
+    obj: Any,
+    /,
+    *,
+    markup: str = "text",
+    value_spec: str | None = None,
+    nested: bool = False,
+    **kw: Any,
 ) -> tuple[Any, ...]:
     """Lay out a dataclass by its fields, and fall back to `str` for the rest.
 
@@ -443,6 +449,8 @@ def pparts(
             value_spec=value_spec,
             **kw,
         )
+    if nested:
+        return _nested_value_parts(obj, markup=markup, value_spec=value_spec, **kw)
     if value_spec is not None:
         msg = (
             f"{type(obj).__name__} does not support a value format spec "
@@ -496,27 +504,6 @@ def _no_reentry(obj: Any, msg: str, /) -> Iterator[None]:
         seen.discard(key)
 
 
-def _has_own_parts(value: Any, /) -> bool:
-    """Whether ``value`` renders through parts of its own.
-
-    True for a dataclass instance (the field layout) and for a value whose
-    `pparts` dispatch, on the instance as plum dispatches it, finds a method
-    more specific than the `Any` fallback. A ``call`` mixin type that is a
-    constructor expression but not a dataclass has no parts: it nests as its
-    ``__pdoc__``.
-    """
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return True
-    if isinstance(value, ReprMixin) and _repr_is_constructor(value):
-        return False
-    # `pparts` is a plum Function at runtime; its static type is the function.
-    function: Any = pparts
-    return (
-        function.resolve_method((value,))[0]
-        is not function.resolve_method((object(),))[0]
-    )
-
-
 def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
     """``value`` as wadler-lindig lays it out, escaped for ``markup``.
 
@@ -532,22 +519,19 @@ def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
     return doc_part("value", doc)
 
 
-def _field_parts(
+def _nested_value_parts(
     value: Any, /, *, markup: str, value_spec: str | None = None, **kw: Any
 ) -> tuple[Any, ...]:
-    """One field's parts, with the value spec only where the value can take it.
+    """A field value with no parts of its own, inside a field layout.
 
-    A value with parts of its own renders through them, spec included. A
-    non-integer number takes a value spec through ``format``; one that rejects
-    a spec a float accepts (a `fractions.Fraction` under ``.3``) falls back,
-    and a spec no float accepts raises, so a typo is not swallowed. Anything
-    else renders as wadler-lindig lays it out (its ``repr``, so a string is
-    quoted): ``format`` would print ``True`` as ``1.00``, cut ``".3"`` from a
-    string, or read the spec as a date's strftime pattern.
+    A non-integer number takes a value spec through ``format``; one that
+    rejects a spec a float accepts (a `fractions.Fraction` under ``.3``) falls
+    back, and a spec no float accepts raises, so a typo is not swallowed.
+    Anything else renders as wadler-lindig lays it out (its ``repr``, so a
+    string is quoted): ``format`` would print ``True`` as ``1.00``, cut
+    ``".3"`` from a string, or read the spec as a date's strftime pattern.
     """
-    if _has_own_parts(value):
-        return pparts(value, markup=markup, value_spec=value_spec, **kw)
-    # issubclass on the type, so pyright does not narrow ``value`` for `pparts`.
+    # issubclass on the type, so pyright does not narrow ``value``.
     t = type(value)
     if (
         value_spec is not None
@@ -567,11 +551,11 @@ def fields_to_parts(
     """Lay out ``obj`` as ``Name(field=value, ...)`` from ``(name, value)`` pairs.
 
     The parts counterpart of `fields_to_pdoc`, and what a dataclass with no
-    `pparts` of its own renders as. Each value is rendered by its own `pparts`
-    with ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside.
-    A value spec goes to a value only if it can take it: a value with its own
-    `pparts`, a dataclass, or a non-integer number. Any other value prints as
-    its ``repr``, so ``f"{x:.2f}"`` neither fails on nor changes a string
+    `pparts` of its own renders as. Each value goes through `pparts` with
+    ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside. A
+    value with no `pparts` of its own is laid out by wadler-lindig (its
+    ``repr``, with line breaks), and takes a value spec only if it is a
+    non-integer number, so ``f"{x:.2f}"`` neither fails on nor changes a string
     field.
 
     Call it from your own `pparts` to pass a context keyword to the children,
@@ -593,7 +577,10 @@ def fields_to_parts(
             if i:
                 out.append(PPart("comma", ", ", "sep"))
             out.append(PPart("key", f"{name}=", "sep"))
-            out.append(PGroup(name, _field_parts(value, markup=markup, **kw)))
+            # ``nested`` tells the fallback this value is a field; plum's
+            # dispatch decides whether it has parts of its own.
+            parts = pparts(value, markup=markup, **{**kw, "nested": True})
+            out.append(PGroup(name, parts))
         out.append(PPart("close", ")", "sep"))
         return tuple(out)
 
@@ -1686,7 +1673,15 @@ def _repr_is_constructor(obj: ReprMixin, /) -> bool:
 
 
 @dispatch  # type: ignore[no-redef]
-def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
+def pparts(
+    obj: ReprMixin,
+    /,
+    *,
+    markup: str = "text",
+    value_spec: str | None = None,
+    nested: bool = False,
+    **kw: Any,
+) -> tuple[Any, ...]:
     """Refuse a `ReprMixin` type that registered no `pparts` of its own.
 
     Without this the generic `str` fallback would call back into the mixin's
@@ -1697,15 +1692,20 @@ def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, 
     ``call`` type with a ``__pdoc__`` of its own renders as its ``repr``.
     """
     if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
-        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+        return fields_to_parts(
+            obj,
+            pfields(obj, value_spec=value_spec, **kw),
+            markup=markup,
+            value_spec=value_spec,
+            **kw,
+        )
     if _repr_is_constructor(obj):
-        if kw.get("value_spec") is not None:
+        if value_spec is not None and not nested:
             msg = (
                 f"{type(obj).__name__} does not support a value format spec: "
                 "its repr is a constructor expression with no parts to format"
             )
             raise TypeError(msg)
-        kw.pop("value_spec", None)
         return (_pdoc_part(obj, markup=markup, **kw),)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "

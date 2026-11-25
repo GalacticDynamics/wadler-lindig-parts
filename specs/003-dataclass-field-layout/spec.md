@@ -55,12 +55,14 @@ floats in a dataclass and leaves the rest alone, instead of failing on them or
 changing them.
 
 A value with no parts of its own prints as wadler-lindig lays it out: its
-`repr`, with line breaks under the parent's width and indentation, escaped for
-the markup, and arrays shortened as the `value` axis says. So a string prints in
-quotes and `"a, b=c"` cannot read as two fields. A `call` mixin type that is not
-a dataclass nests as its own `__pdoc__`. Whether a value has parts of its own is
-decided by plum's dispatch on the instance, so a registration on a parametric
-type such as `list[X]` is found. At the top level, a non-dataclass with no `pparts` still
+`repr`, with line breaks under the parent's width, escaped for the markup, and
+arrays summarised as `wl.pformat` does under the same `value` setting. So a
+string prints in quotes and `"a, b=c"` cannot read as two fields. A `call` mixin
+type that is not a dataclass nests as its own `__pdoc__`, unless it registers
+`pparts`. Each field goes through ordinary `pparts` dispatch with a `nested`
+keyword, so plum decides whether a value has parts of its own, a registration on
+a parametric type such as `list[X]` is found, and the lookup is plum's cached
+one. At the top level, a non-dataclass with no `pparts` still
 raises on a value spec, as before.
 
 ## Boundaries
