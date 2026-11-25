@@ -242,3 +242,27 @@ def test_nested_parents_pass_their_own_context() -> None:
     outer = Parent("a", Parent("b", Child("b")))  # type: ignore[arg-type]
     assert repr(outer) == "Parent(u='a', c=Parent(u='b', c=Child()))"
     assert pspec(outer, "product") == "Parent(u=a, c=Parent(u=b, c=Child()))"
+
+
+# ---------------------------------------------------------------------------
+# Notebook markup for call types
+
+
+def test_call_type_notebook_default_unchanged() -> None:
+    assert C(2.0)._repr_html_() is None
+    assert C(2.0)._repr_latex_() is None
+
+
+@dataclasses.dataclass(repr=False)
+class E(ReprMixin):
+    __repr_spec__ = "call"
+    __notebook_parts__ = True
+    t: Term
+
+
+def test_notebook_parts_switch_shows_markup() -> None:
+    e = E(Term(1.0, "x"))
+    assert e._repr_html_() == pspec(e, "html")
+    assert e._repr_latex_() == pspec(e, "latex")
+    assert e._repr_latex_().startswith("$")
+    assert repr(e) == "E(t=1.0 * x)"

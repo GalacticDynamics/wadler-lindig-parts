@@ -1529,7 +1529,8 @@ class ReprMixin:
     newlines, and they follow the class spec as ``repr`` does: a ``mul`` type
     keeps its `` * `` in a notebook. When ``repr`` is a constructor expression
     (a ``call`` dataclass, or a ``call`` type with its own ``__pdoc__``) they
-    return `None`, so a notebook shows that same expression.
+    return `None`, so a notebook shows that same expression. Set
+    ``__notebook_parts__ = True`` to show the parts layout there instead.
 
     Under a ``call`` spec a dataclass's ``__pdoc__`` from this mixin returns
     `fields_to_pdoc` over its `pfields`: wadler-lindig's own field layout, with
@@ -1549,6 +1550,9 @@ class ReprMixin:
     """
 
     __repr_spec__: ClassVar[str] = "product"
+    #: Show the parts layout in a notebook even when ``repr`` is a constructor
+    #: expression. Off by default, so a ``call`` type shows its ``repr`` there.
+    __notebook_parts__: ClassVar[bool] = False
     _repr_spec_parsed: ClassVar[Spec]
 
     def __init_subclass__(cls, **kw: Any) -> None:
@@ -1593,13 +1597,13 @@ class ReprMixin:
 
     def _repr_html_(self) -> str | None:
         # A constructor expression has no markup form; `None` tells IPython to
-        # show the repr instead.
-        if self._repr_is_constructor():
+        # show the repr instead, unless the class asked for its parts there.
+        if self._repr_is_constructor() and not self.__notebook_parts__:
             return None
         return self._flat_markup("html")
 
     def _repr_latex_(self) -> str | None:
-        if self._repr_is_constructor():
+        if self._repr_is_constructor() and not self.__notebook_parts__:
             return None
         return self._flat_markup("latex")
 
