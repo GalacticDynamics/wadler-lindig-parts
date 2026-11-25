@@ -515,3 +515,50 @@ def test_the_dispatch_types_are_subclasses_of_themselves() -> None:
 
     assert issubclass(Dataclass, Dataclass)
     assert issubclass(_Fractional, _Fractional)
+
+
+def test_a_str_subclass_routing_repr_through_the_engine_does_not_recurse() -> None:
+    class Tag(str):
+        def __repr__(self) -> str:
+            return pspec(self, "bare")
+
+    assert repr(Tag("a")) == "'a'"
+
+
+def test_a_float_subclass_routing_repr_through_the_engine_raises_cleanly() -> None:
+    class Money(float):
+        def __repr__(self) -> str:
+            return pspec(self, "bare")
+
+    with pytest.raises(TypeError, match="would recurse"):
+        repr(Money(1.5))
+
+
+def test_str_subclasses_print_as_plain_quoted_strings() -> None:
+    import enum
+
+    class SE(str, enum.Enum):
+        A = "a"
+
+    assert pspec(SE.A, "product") == "'a'"
+
+
+@dataclasses.dataclass(repr=False)
+class Angle(ReprMixin):
+    """A call-spec mixin dataclass whose own __pdoc__ is its form."""
+
+    __repr_spec__ = "call"
+    value: float
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        return wl.TextDoc(f"Angle({self.value} deg)")
+
+
+def test_a_call_dataclass_with_its_own_pdoc_uses_it_on_every_route() -> None:
+    @dataclasses.dataclass
+    class Box:
+        a: Angle
+
+    assert repr(Angle(30.0)) == "Angle(30.0 deg)"
+    assert pspec(Angle(30.0), "product") == "Angle(30.0 deg)"
+    assert pspec(Box(Angle(30.0)), "product") == "Box(a=Angle(30.0 deg))"

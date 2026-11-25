@@ -1626,11 +1626,14 @@ def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, 
     spec still raises, so a missing registration cannot render plausibly. A
     ``call`` type with a ``__pdoc__`` of its own renders as that document.
     """
-    if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
-        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
-    if _repr_is_constructor(obj):
-        kw.pop("value_spec", None)  # a constructor expression has no value to format
-        return (_pdoc_part(obj, markup=markup, **kw),)
+    if obj._repr_spec_parsed["layout"] == "call":
+        if type(obj).__pdoc__ is not ReprMixin.__pdoc__:
+            # Its own ``__pdoc__`` is its form, on every route: a constructor
+            # expression has no value to format.
+            kw.pop("value_spec", None)
+            return (_pdoc_part(obj, markup=markup, **kw),)
+        if dataclasses.is_dataclass(obj):
+            return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "
         "(register one with @pparts.dispatch)"
@@ -1691,6 +1694,10 @@ def _pparts_dataclass(
 def _pparts_str(obj: str, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
     """A string, quoted as in a ``repr``, so ``"a, b=c"`` reads as one value.
 
+    A subclass (a ``StrEnum`` member, ``np.str_``) prints as the plain string it
+    holds, and its own ``__repr__`` is not called, so one that routes through
+    this engine cannot loop.
+
     Examples
     --------
     >>> from wadler_lindig_parts import parts_to_markup, pparts
@@ -1698,7 +1705,7 @@ def _pparts_str(obj: str, /, *, markup: str = "text", **kw: Any) -> tuple[Any, .
     "'a, b=c'"
 
     """
-    return (PPart("value", repr(obj)),)
+    return (PPart("value", repr(str.__str__(obj))),)
 
 
 class _Fractional(abc.ABC):
@@ -1738,6 +1745,9 @@ def _pparts_number(
 
     """
     if value_spec is not None:
-        with contextlib.suppress(TypeError, ValueError):
+        # Guarded like the str fallback: a ``__format__`` that routes back
+        # through this engine raises here and falls back below.
+        msg = f"{type(obj).__name__} formats through this engine"
+        with contextlib.suppress(TypeError, ValueError), _no_reentry(obj, msg):
             return (PPart("value", format(obj, value_spec)),)
-    return (PPart("value", str(obj)),)
+    return (PPart("value", _fallback_text(obj)),)
