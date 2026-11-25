@@ -90,7 +90,13 @@ That rule made a container fail as soon as one field could not take the spec.
   quoted, a non-integer number takes a value spec at the top level, an
   unregistered object ignores a value spec instead of raising, and a free-text
   spec that no float, int or str accepts (a strftime pattern) raises up front.
-  `repr`, `str` and `wl.pformat` are unchanged.
+  `wl.pformat` and the `repr` of plain dataclasses are unchanged. A type whose
+  `repr` is its parts layout and that passes a string to `pparts` now shows it
+  quoted in `repr` too.
+- The layout ignores a dataclass's own `__repr__`, `__str__` and `__pdoc__`, so a
+  coordinax vector renders field by field. The cost: a dataclass whose readable
+  form is its own `__pdoc__` or `str` (an `equinox.Enumeration` item) shows its
+  internal fields until something registers `pparts` for it.
 - unxt's unit systems raise on a value spec today; with this release they
   should ignore it instead, so a container holding one can take `.2e`.
 - A dataclass that contains itself through its fields raises a `TypeError` that

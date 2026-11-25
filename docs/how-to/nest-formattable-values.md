@@ -70,7 +70,9 @@ It degrades to `str(obj)` like any unregistered type. Wrap it in `PPart` with
 a role of its own if you want a markup to be able to style it.
 
 A dataclass field is the exception: it gets the field layout, so the spec
-reaches its values too.
+reaches its values too. A string has its own method and prints quoted, as in a
+`repr`; to show a string as bare text, emit it as `PPart(role, s)` instead of
+passing it to `pparts`.
 
 ## Pass context from a parent to its children
 

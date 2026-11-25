@@ -160,6 +160,9 @@ shows one.
 The layout is an ordinary `pparts` registration on `Dataclass`, a dispatch
 type every dataclass that is not a `ReprMixin` matches. A `pparts` method of
 your own for a dataclass therefore replaces the layout by ordinary dispatch.
+The layout does not consult a dataclass's own `__repr__`, `__str__` or
+`__pdoc__`, so a dataclass whose readable form is one of those (an
+`equinox.Enumeration` item, say) needs a `pparts` method to keep it.
 The values inside are rendered the same way: strings and non-integer numbers
 have registrations of their own (a string prints in quotes, a number takes the
 value spec), and anything unregistered degrades to its `str`. The `str` method
