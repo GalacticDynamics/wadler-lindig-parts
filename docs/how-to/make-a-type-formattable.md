@@ -66,9 +66,9 @@ than `1 * 2`:
 For what you may put in a spec, see
 [Format spec grammar](../reference/spec-grammar.md).
 
-Printing one before `pparts` is registered raises a `TypeError` naming the
-omission, rather than looping through the `str` fallback and back into
-`__repr__`.
+Until `pparts` is registered, a dataclass like `Version` prints its fields.
+A type that is not a dataclass raises a `TypeError` naming the omission,
+rather than looping through the `str` fallback and back into `__repr__`.
 
 ## If your type's repr is a constructor expression
 
@@ -153,19 +153,9 @@ value format spec reaches the values inside. A plain dataclass has no
 
 The fields that print come from `pfields`. Its default follows
 wadler-lindig: a field with `repr=False` is left out, and so is a field whose
-value is its default object. Register a method to change that for one type:
-
-```python
->>> from wadler_lindig_parts import pfields
-
->>> @pfields.dispatch
-... def _(obj: Segment, /, **kw):
-...     return (("slope", obj.slope),)
-
->>> pspec(s, "product")
-'Segment(slope=2.0 x)'
-
-```
+value is its default object. To change that for one type, register a `pfields`
+method; [How to write a constructor-form repr](write-a-constructor-repr.md)
+shows one.
 
 Of the values with no `pparts` of their own, only a non-integer number takes a
 value spec. Anything else prints as its `repr` instead of failing, so a string

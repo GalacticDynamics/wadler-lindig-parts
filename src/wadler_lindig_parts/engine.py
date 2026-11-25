@@ -559,12 +559,10 @@ def fields_to_parts(
 
     The parts counterpart of `fields_to_pdoc`, and what a dataclass with no
     `pparts` of its own renders as. Each value goes through `pparts` with
-    ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside. A
-    value with no `pparts` of its own is laid out by wadler-lindig (its
-    ``repr``, with line breaks), and takes a value spec only if it is a
-    non-integer number, so ``f"{x:.2f}"`` neither fails on nor changes a string
-    field. A value whose own `pparts` refuses the spec with a `TypeError` is
-    rendered again without it.
+    ``markup`` and ``**kw``, so a spec reaches the values inside. A value with
+    no parts of its own is laid out by wadler-lindig, as its ``repr``, and
+    takes a value spec only if it is a non-integer number. A value that
+    refuses the value spec with a `TypeError` is rendered again without it.
 
     Call it from your own `pparts` to pass a context keyword to the children,
     which receive it in their `pparts` and `pfields`.

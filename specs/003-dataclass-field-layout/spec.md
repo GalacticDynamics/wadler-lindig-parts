@@ -30,8 +30,6 @@ registering only their exceptions. It could have applied to `ReprMixin` types
 only. The maintainer chose every dataclass, so a dataclass from another library
 inside a galax object (a coordinax vector, for one) also renders field by field,
 with its quantities formatted by unxt, before that library adopts the engine.
-The change reaches only the parts layout of dataclasses that registered nothing,
-whose output used to be their `str` text.
 
 ## What "default" means
 
@@ -62,13 +60,9 @@ A value with no parts of its own prints as wadler-lindig lays it out: its
 arrays summarised as `wl.pformat` does under the same `value` setting. So a
 string prints in quotes and `"a, b=c"` cannot read as two fields. A `call` mixin
 type that is not a dataclass nests as its own `__pdoc__`, unless it registers
-`pparts`. Each field goes through ordinary `pparts` dispatch with a private
-`_nested` keyword naming the field value, so plum decides whether a value has
-parts of its own, a registration on a parametric type such as `list[X]` is
-found, and the lookup is plum's cached one. A grandchild that a registered
-method forwards `**kw` to is not the named value, so it keeps the top-level
-behaviour. At the top level, a non-dataclass with no `pparts` still
-raises on a value spec, as before.
+`pparts`. Each field goes through ordinary `pparts` dispatch, so a registration
+on a parametric type such as `list[X]` is found. At the top level, a
+non-dataclass with no `pparts` still raises on a value spec, as before.
 
 ## Boundaries
 
