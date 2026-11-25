@@ -563,7 +563,8 @@ def fields_to_parts(
     value with no `pparts` of its own is laid out by wadler-lindig (its
     ``repr``, with line breaks), and takes a value spec only if it is a
     non-integer number, so ``f"{x:.2f}"`` neither fails on nor changes a string
-    field.
+    field. A value whose own `pparts` refuses the spec with a `TypeError` is
+    rendered again without it.
 
     Call it from your own `pparts` to pass a context keyword to the children,
     which receive it in their `pparts` and `pfields`.
@@ -587,7 +588,15 @@ def fields_to_parts(
             # ``_nested`` names the field value, so the fallbacks treat it, and
             # not a grandchild a registered method forwards ``**kw`` to, as a
             # field. plum's dispatch decides whether it has parts of its own.
-            parts = pparts(value, markup=markup, **{**kw, "_nested": value})
+            field_kw = {**kw, "_nested": value}
+            try:
+                parts = pparts(value, markup=markup, **field_kw)
+            except TypeError:
+                # A value that refuses the value spec (a unit system) prints
+                # without it; a mistyped spec still fails on the numbers.
+                if field_kw.pop("value_spec", None) is None:
+                    raise
+                parts = pparts(value, markup=markup, **field_kw)
             out.append(PGroup(name, parts))
         out.append(PPart("close", ")", "sep"))
         return tuple(out)

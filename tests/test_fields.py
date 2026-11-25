@@ -478,3 +478,28 @@ def test_only_the_field_value_counts_as_nested() -> None:
     q = Qty(1.5, Unit("km"))
     assert pspec(q, "product") == "1.5 km"
     assert pspec(Box(q), "product") == "Box(q=1.5 km)"
+
+
+class System:
+    """A registered type that refuses a value spec, like unxt's unit systems."""
+
+
+@pparts.dispatch
+def _(
+    obj: System, /, *, markup: str = "text", value_spec: str | None = None, **kw: object
+) -> tuple:
+    if value_spec is not None:
+        msg = "System does not support a value format spec"
+        raise TypeError(msg)
+    return (PPart("system", "galactic"),)
+
+
+def test_a_field_that_refuses_the_spec_renders_without_it() -> None:
+    @dataclasses.dataclass
+    class Pot:
+        m: float
+        units: System
+
+    assert pspec(Pot(1.23456, System()), ".2f") == "Pot(m=1.23, units=galactic)"
+    with pytest.raises(TypeError, match="does not support a value format spec"):
+        pspec(System(), ".2f")

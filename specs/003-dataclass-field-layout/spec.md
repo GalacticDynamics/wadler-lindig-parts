@@ -48,7 +48,10 @@ prints it.
 A value spec reaches a field's value when the value has its own `pparts`, is a
 dataclass, or is a non-integer number that `format(value, spec)` accepts. A
 number that rejects a spec a float accepts (a `Fraction` under `.3`) falls back
-to its `repr`; a spec no float accepts raises, so a typo is not swallowed. Any other value prints as
+to its `repr`; a spec no float accepts raises, so a typo is not swallowed. A
+value whose own `pparts` refuses a value spec with a `TypeError` (unxt's unit
+systems do) is rendered again without it, so `f"{pot:.2e}"` works on a galax
+potential that holds one. Any other value prints as
 its `repr`: `format` would print `True` as `1.00`, cut a string to the spec's
 precision, or read the spec as a date's strftime pattern. So `.2f` formats the
 floats in a dataclass and leaves the rest alone, instead of failing on them or
