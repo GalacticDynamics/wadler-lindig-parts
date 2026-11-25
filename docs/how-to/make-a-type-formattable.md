@@ -162,7 +162,10 @@ type every dataclass that is not a `ReprMixin` matches. A `pparts` method of
 your own for a dataclass therefore replaces the layout by ordinary dispatch.
 The values inside are rendered the same way: strings and non-integer numbers
 have registrations of their own (a string prints in quotes, a number takes the
-value spec), and anything unregistered degrades to its `str`.
+value spec), and anything unregistered degrades to its `str`. Those methods are
+specific, so a broader registration of yours (a `Union` with `str`, or
+`numbers.Number`) does not handle a plain string or float; register the exact
+type for that.
 
 ## If your type registers no `pparts` at all
 

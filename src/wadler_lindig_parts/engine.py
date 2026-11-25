@@ -1661,12 +1661,15 @@ class Dataclass(abc.ABC):
 
     @classmethod
     def __subclasshook__(cls, other: type, /) -> bool:
+        if other is cls:  # the hook runs before the MRO check
+            return True
         return dataclasses.is_dataclass(other) and not issubclass(other, ReprMixin)
 
 
 # Negative precedences: a downstream method on an unrelated base class (or on
-# ``np.generic``) that also matches wins, instead of an ambiguous lookup. The
-# two differ so a dataclass that is also a number resolves to the layout.
+# ``np.generic``, or on ``Enum`` for a ``StrEnum``) that also matches wins,
+# instead of an ambiguous lookup. The three differ so a value that matches two
+# of them (a dataclass that is also a number) still resolves.
 @pparts.dispatch(precedence=-1)  # type: ignore[misc]
 def _pparts_dataclass(
     obj: Dataclass, /, *, markup: str = "text", **kw: Any
@@ -1684,7 +1687,7 @@ def _pparts_dataclass(
     return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
 
 
-@pparts.dispatch  # type: ignore[misc]
+@pparts.dispatch(precedence=-3)  # type: ignore[misc]
 def _pparts_str(obj: str, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
     """A string, quoted as in a ``repr``, so ``"a, b=c"`` reads as one value.
 
@@ -1706,6 +1709,8 @@ class _Fractional(abc.ABC):
 
     @classmethod
     def __subclasshook__(cls, other: type, /) -> bool:
+        if other is cls:  # the hook runs before the MRO check
+            return True
         return issubclass(other, numbers.Number) and not issubclass(
             other, numbers.Integral
         )

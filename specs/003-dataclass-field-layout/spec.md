@@ -94,7 +94,8 @@ That rule made a container fail as soon as one field could not take the spec.
 - unxt's unit systems raise on a value spec today; with this release they
   should ignore it instead, so a container holding one can take `.2e`.
 - A dataclass that contains itself through its fields raises a `TypeError` that
-  says so. A cycle through a list or dict prints wadler-lindig's `<recursive>`.
+  says so. A cycle through a list or dict stops at the container's own repr
+  (`[...]`, or wadler-lindig's `<recursive>` for a `ReprMixin` dataclass).
 - The layout's own parts use private roles (`_field_open`, `_field_key`,
   `_field_comma`, `_field_close`), so a markup that styles a common role such as
   `name` cannot rewrite it.

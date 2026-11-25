@@ -491,3 +491,27 @@ def test_a_dataclass_number_resolves() -> None:
 def test_a_bad_free_text_spec_keeps_pythons_message() -> None:
     with pytest.raises(ValueError, match="Invalid format specifier"):
         pspec(Point(1.0, 2.0), ".2f-.3g")
+
+
+def test_a_registered_base_class_beats_the_str_rule() -> None:
+    import enum
+
+    class Tagged:
+        pass
+
+    @pparts.dispatch
+    def _(obj: Tagged, /, *, markup: str = "text", **kw: object) -> tuple:
+        return (PPart("tag", "TAGGED"),)
+
+    class SE(Tagged, str, enum.Enum):
+        A = "a"
+
+    assert pspec(SE.A, "product") == "TAGGED"
+
+
+def test_the_dispatch_types_are_subclasses_of_themselves() -> None:
+    from wadler_lindig_parts import Dataclass
+    from wadler_lindig_parts.engine import _Fractional
+
+    assert issubclass(Dataclass, Dataclass)
+    assert issubclass(_Fractional, _Fractional)
