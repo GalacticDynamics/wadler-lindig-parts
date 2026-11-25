@@ -249,7 +249,7 @@ def test_value_spec_formats_only_non_integer_numbers() -> None:
 
     when = datetime.date(2024, 1, 2)
     m = M(1.23456, when, "galactic", Color.RED, True)
-    want = f"M(x=1.23, when={when}, name='galactic', c={Color.RED}, flag=True)"
+    want = f"M(x=1.23, when={when}, name='galactic', c={Color.RED!s}, flag=True)"
     assert pspec(m, ".2f") == want
     assert pspec(m, ".3") == want
 

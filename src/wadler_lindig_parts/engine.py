@@ -533,7 +533,8 @@ def fields_to_pdoc(
     The ``call`` counterpart of `fields_to_parts`: the same document
     wadler-lindig builds for a dataclass, over the fields you pass. ``**kw`` are
     wadler-lindig's options, forwarded to every value's ``__pdoc__``, so a
-    context keyword reaches the children's `pfields` too.
+    context keyword reaches the `pfields` of children that build their own
+    document from it (a ``call``-spec `ReprMixin` dataclass).
 
     Examples
     --------
@@ -1572,8 +1573,16 @@ class ReprMixin:
         return parts_to_markup(parts, markup=markup, sep=sep)
 
     def _notebook_shows_repr(self) -> bool:
-        """Whether a notebook shows ``repr`` instead of markup."""
-        return not self.__notebook_parts__ and _repr_is_constructor(self)
+        """Whether a notebook shows ``repr`` instead of markup.
+
+        It does when ``repr`` is a constructor expression (a ``call`` spec, with
+        the dataclass field layout or a ``__pdoc__`` of the type's own) and the
+        class did not set ``__notebook_parts__``.
+        """
+        if self.__notebook_parts__ or self._repr_spec_parsed["layout"] != "call":
+            return False
+        own_pdoc = type(self).__pdoc__ is not ReprMixin.__pdoc__
+        return own_pdoc or dataclasses.is_dataclass(self)
 
     def _repr_html_(self) -> str | None:
         # A constructor expression has no markup form; `None` tells IPython to
@@ -1600,19 +1609,6 @@ class ReprMixin:
         markup = layout.pop("markup", "text")
         sep = layout.pop("sep", None)
         return pparts_to_pdoc(self, indent=indent, sep=sep, markup=markup, **layout)
-
-
-def _repr_is_constructor(obj: ReprMixin, /) -> bool:
-    """Whether ``obj``'s ``repr`` is a constructor expression, not fragments.
-
-    It is under a ``call`` spec, when the constructor form comes from the
-    dataclass field layout or from a ``__pdoc__`` of the type's own. A ``call``
-    type with neither still renders its fragments.
-    """
-    if obj._repr_spec_parsed["layout"] != "call":
-        return False
-    own_pdoc = type(obj).__pdoc__ is not ReprMixin.__pdoc__
-    return own_pdoc or dataclasses.is_dataclass(obj)
 
 
 @dispatch  # type: ignore[no-redef]

@@ -10,7 +10,9 @@ by `pvalue`. The default handles a scalar and nothing with structure; for what
 it does exactly, see [the `value` axis](../reference/axes.md#value).
 
 `pvalue` is a dispatch point, so you can register a method for your own type
-and decide there what a value format spec means for it.
+and decide there what a value format spec means for it. The spec must still be
+one that a float, an int or a str accepts: `pspec` rejects any other free text
+before rendering.
 
 ## Register a method
 
