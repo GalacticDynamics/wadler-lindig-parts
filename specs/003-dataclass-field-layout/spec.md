@@ -90,6 +90,8 @@ That rule made a container fail as soon as one field could not take the spec.
   quoted, a non-integer number takes a value spec at the top level, an
   unregistered object ignores a value spec instead of raising, and a free-text
   spec that no float, int or str accepts (a strftime pattern) raises up front.
+  A plain dataclass's parts layout leaves out `repr=False` fields and fields
+  that hold their default object, which its stdlib `repr` shows.
   `wl.pformat` and the `repr` of plain dataclasses are unchanged. A type whose
   `repr` is its parts layout and that passes a string to `pparts` now shows it
   quoted in `repr` too.

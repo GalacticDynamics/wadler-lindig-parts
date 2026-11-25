@@ -77,9 +77,13 @@ passing it to `pparts`.
 ## Pass context from a parent to its children
 
 A container sometimes knows something its children should use, such as a unit
-they share and can leave out. Put it in `**kw`: every child's `pparts` and
-`pfields` receive it. For a dataclass, `fields_to_parts` and `fields_to_pdoc`
-build the default layouts, so a container can add one keyword and keep them:
+they share and can leave out. Put it in `**kw`. On the parts route every
+child's `pparts` and `pfields` receive it. On the `__pdoc__` route (`repr`,
+`wl.pformat`) only a child that builds its own document from `pfields` does: a
+`call`-spec `ReprMixin` dataclass, like `Leaf` below. A plain dataclass child
+keeps wadler-lindig's own layout there. For a dataclass, `fields_to_parts` and
+`fields_to_pdoc` build the default layouts, so a container can add one keyword
+and keep them:
 
 ```python
 >>> from wadler_lindig_parts import (

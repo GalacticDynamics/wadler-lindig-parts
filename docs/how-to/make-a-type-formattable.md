@@ -119,8 +119,10 @@ would silently shadow the inherited one:
 
 ```
 
-Two things change beyond the base class. `__repr_spec__` is parsed when the
-*class* is created, so a bad spec fails at definition rather than on first
+Two things change beyond the base class, and one does not: a `ReprMixin` type
+with a parts spec like `bare` still raises until its `pparts` is registered,
+even when it is a dataclass. `__repr_spec__` is parsed when the *class* is
+created, so a bad spec fails at definition rather than on first
 print, and reassigning it later has no effect. That also means an axis your
 own package registers has to be registered **before** the `class` statement
 runs — at import of your package, ahead of the modules defining those
