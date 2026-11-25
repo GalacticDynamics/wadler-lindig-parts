@@ -577,12 +577,14 @@ def fields_to_parts(
 
     """
     msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
+    # The layout's own roles are private names, so a markup that styles a
+    # common role such as ``name`` or ``key`` cannot rewrite the layout.
     with _no_reentry(obj, msg):
-        out: list[Any] = [PPart("name", f"{type(obj).__name__}(", "sep")]
+        out: list[Any] = [PPart("_field_open", f"{type(obj).__name__}(", "sep")]
         for i, (name, value) in enumerate(fields):
             if i:
-                out.append(PPart("comma", ", ", "sep"))
-            out.append(PPart("key", f"{name}=", "sep"))
+                out.append(PPart("_field_comma", ", ", "sep"))
+            out.append(PPart("_field_key", f"{name}=", "sep"))
             # ``_nested`` names the field value, so the fallbacks treat it, and
             # not a grandchild a registered method forwards ``**kw`` to, as a
             # field. plum's dispatch decides whether it has parts of its own.
@@ -596,7 +598,7 @@ def fields_to_parts(
                     raise
                 parts = pparts(value, markup=markup, **field_kw)
             out.append(PGroup(name, parts))
-        out.append(PPart("close", ")", "sep"))
+        out.append(PPart("_field_close", ")", "sep"))
         return tuple(out)
 
 
@@ -1503,8 +1505,9 @@ def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
 
     The extension point for which fields print, shared by both routes: the
     ``call`` layout of a `ReprMixin` dataclass and the default parts layout of
-    any dataclass. Register a method to hide, rename or replace a field, and
-    ``repr`` and ``format`` change together.
+    any dataclass. Register a method to hide, rename or replace a field. For a
+    ``call``-spec `ReprMixin` dataclass, ``repr`` and ``format`` then change
+    together; a plain dataclass keeps wadler-lindig's own ``repr``.
 
     The default keeps wadler-lindig's own rule, so it cannot disagree with
     ``wl.pformat``: a field with ``repr=False`` is left out, and so is one whose

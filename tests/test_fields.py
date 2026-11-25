@@ -503,3 +503,14 @@ def test_a_field_that_refuses_the_spec_renders_without_it() -> None:
     assert pspec(Pot(1.23456, System()), ".2f") == "Pot(m=1.23, units=galactic)"
     with pytest.raises(TypeError, match="does not support a value format spec"):
         pspec(System(), ".2f")
+
+
+def test_layout_roles_do_not_collide_with_markup_role_overrides() -> None:
+    from wadler_lindig_parts import MARKUPS, register_markup, unregister_markup
+
+    styled = {"name": "<b>{}</b>", "key": "_{}_", "comma": "?", "close": "!"}
+    register_markup("styled", {**MARKUPS["text"], **styled})
+    try:
+        assert pspec(Point(1.0, 2.0), "styled") == "Point(x=1.0, y=2.0)"
+    finally:
+        unregister_markup("styled")

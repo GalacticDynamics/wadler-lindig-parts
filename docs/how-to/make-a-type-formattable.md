@@ -157,7 +157,8 @@ value is its default object. To change that for one type, register a `pfields`
 method; [How to write a constructor-form repr](write-a-constructor-repr.md)
 shows one.
 
-Of the values with no `pparts` of their own, only a non-integer number takes a
+A field that is a dataclass gets the same layout and the same spec. Of the
+other values with no `pparts` of their own, only a non-integer number takes a
 value spec. Anything else prints as its `repr` instead of failing, so a string
 prints in quotes.
 

@@ -11,8 +11,9 @@ therefore reaches the values inside it.
 
 Which fields print is decided in one place, `pfields`. Both routes use it: the
 parts layout of any dataclass, and the constructor form (`call`) of a `ReprMixin`
-dataclass. A type that registers `pfields` changes its `repr` and its formatted
-output together.
+dataclass. A `ReprMixin` dataclass that registers `pfields` changes its `repr`
+and its formatted output together; a plain dataclass keeps wadler-lindig's own
+`repr` and changes only its formatted output.
 
 The two layouts are public as `fields_to_parts` and `fields_to_pdoc`, so a type
 can keep the default layout and add a context keyword for its children. galax
@@ -72,5 +73,9 @@ non-dataclass with no `pparts` still raises on a value spec, as before.
 - A plain dataclass whose hand-written `__repr__` routes through the engine now
   renders its fields instead of raising the recursion error. The recursion guard
   still covers every other type.
-- A dataclass that contains itself raises a `TypeError` that says so.
+- A dataclass that contains itself through its fields raises a `TypeError` that
+  says so. A cycle through a list or dict prints wadler-lindig's `<recursive>`.
+- The layout's own parts use private roles (`_field_open`, `_field_key`,
+  `_field_comma`, `_field_close`), so a markup that styles a common role such as
+  `name` cannot rewrite it.
 - No new runtime dependency.
