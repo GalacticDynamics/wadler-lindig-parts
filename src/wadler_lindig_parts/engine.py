@@ -47,6 +47,7 @@ __all__ = (
     "doc_part",
     "doc_to_str",
     "fields_to_parts",
+    "fields_to_pdoc",
     "inert_axes",
     "markup_table",
     "math_doc",
@@ -547,6 +548,35 @@ def fields_to_parts(
         return tuple(out)
     finally:
         seen.discard(key)
+
+
+def fields_to_pdoc(
+    obj: Any, fields: Iterable[tuple[str, Any]], /, **kw: Any
+) -> wl.AbstractDoc:
+    """Lay out ``obj`` as a constructor call from ``(name, value)`` pairs.
+
+    The ``call`` counterpart of `fields_to_parts`: the same document
+    wadler-lindig builds for a dataclass, over the fields you pass. ``**kw`` are
+    wadler-lindig's options, forwarded to every value's ``__pdoc__``, so a
+    context keyword reaches the children's `pfields` too.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import doc_to_str, fields_to_pdoc
+    >>> from wadler_lindig_parts.examples import Point
+    >>> p = Point(1.0, 2.0)
+    >>> doc_to_str(fields_to_pdoc(p, [("y", p.y)]))
+    'Point(y=2.0)'
+
+    """
+    name_kw = {**kw, "show_type_module": kw.get("show_dataclass_module", False)}
+    return wl.bracketed(
+        begin=wl.pdoc(type(obj), **name_kw) + wl.TextDoc("("),
+        docs=wl.named_objs(list(fields), **kw),
+        sep=wl.comma,
+        end=wl.TextDoc(")"),
+        indent=kw.get("indent", 2),
+    )
 
 
 def _sep_doc(
@@ -1502,8 +1532,9 @@ class ReprMixin:
     return `None`, so a notebook shows that same expression.
 
     Under a ``call`` spec a dataclass's ``__pdoc__`` from this mixin returns
-    `None`, which tells wadler-lindig to use its field layout. A subclass that
-    overrides ``__pdoc__`` and calls ``super().__pdoc__()`` must handle that.
+    `fields_to_pdoc` over its `pfields`: wadler-lindig's own field layout, with
+    the fields a `pfields` method chose. It always returns a document, so a
+    subclass may wrap ``super().__pdoc__()``.
 
     The ``call`` behaviour follows the *class* spec, not the one a caller
     passes: ``f"{x:call}"`` asks the type for its ``__pdoc__``, and a mixin
@@ -1573,13 +1604,14 @@ class ReprMixin:
         return self._flat_markup("latex")
 
     def __pdoc__(self, *, indent: int = 2, **kw: Any) -> wl.AbstractDoc | None:
-        # A dataclass asking for the constructor form gets wadler-lindig's own
-        # field layout, which `None` falls back to. Anything else has no
-        # constructor form to fall back to, so it keeps the fragments.
+        # A dataclass asking for the constructor form gets the field layout,
+        # built from `pfields` so a `pfields` override changes ``repr`` and
+        # ``format`` together. Anything else has no constructor form to fall
+        # back to, so it keeps the fragments.
         if self._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(
             self
         ):
-            return None
+            return fields_to_pdoc(self, pfields(self, **kw), indent=indent, **kw)
         layout = _layout_kwargs(self._repr_spec_parsed, "product")
         markup = layout.pop("markup", "text")
         sep = layout.pop("sep", None)

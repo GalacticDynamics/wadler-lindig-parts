@@ -38,6 +38,7 @@ from .engine import (
     doc_part,
     doc_to_str,
     fields_to_parts,
+    fields_to_pdoc,
     FLAT,
     inert_axes,
     markup_table,

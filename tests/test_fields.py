@@ -5,7 +5,14 @@ import dataclasses
 import pytest
 import wadler_lindig as wl
 
-from wadler_lindig_parts import pfields, pparts, pspec, ReprMixin
+from wadler_lindig_parts import (
+    fields_to_parts,
+    fields_to_pdoc,
+    pfields,
+    pparts,
+    pspec,
+    ReprMixin,
+)
 from wadler_lindig_parts.examples import Point, Term
 
 
@@ -155,3 +162,83 @@ def test_cyclic_dataclass_raises_cleanly() -> None:
     n.nxt = n
     with pytest.raises(TypeError, match="contains itself"):
         pspec(n, "product")
+
+
+# ---------------------------------------------------------------------------
+# The constructor route
+
+
+@dataclasses.dataclass(repr=False)
+class C(ReprMixin):
+    __repr_spec__ = "call"
+    v: float
+    w: float = 1.0
+
+
+def test_call_repr_matches_plain_dataclass_layout() -> None:
+    assert repr(C(2.0)) == "C(v=2.0)"
+
+
+def test_super_pdoc_returns_a_document_under_call() -> None:
+    assert isinstance(C(2.0).__pdoc__(), wl.AbstractDoc)
+
+
+@dataclasses.dataclass(repr=False)
+class D(ReprMixin):
+    __repr_spec__ = "call"
+    a: int
+    b: int
+
+
+@pfields.dispatch
+def _(obj: D, /, **kw: object) -> tuple[tuple[str, object], ...]:
+    return (("a", obj.a),)
+
+
+def test_pfields_override_changes_repr_and_product_together() -> None:
+    assert repr(D(1, 2)) == "D(a=1)"
+    assert pspec(D(1, 2), "product") == "D(a=1)"
+
+
+@dataclasses.dataclass(repr=False)
+class Child(ReprMixin):
+    __repr_spec__ = "call"
+    u: str
+
+
+@pfields.dispatch
+def _(obj: Child, /, **kw: object) -> tuple[tuple[str, object], ...]:
+    return () if kw.get("parent_u") == obj.u else (("u", obj.u),)
+
+
+@dataclasses.dataclass(repr=False)
+class Parent(ReprMixin):
+    """Passes its ``u`` to its child on both routes, as a galax composite will."""
+
+    __repr_spec__ = "call"
+    u: str
+    c: Child
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        # Merge, so a parent nested in another parent overrides its context.
+        kw = {**kw, "parent_u": self.u}
+        return fields_to_pdoc(self, pfields(self, **kw), **kw)
+
+
+@pparts.dispatch
+def _(obj: Parent, /, *, markup: str = "text", **kw: object) -> tuple:
+    kw = {**kw, "parent_u": obj.u}
+    return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+
+
+def test_parent_context_keyword_reaches_child_pfields_on_both_routes() -> None:
+    assert repr(Parent("a", Child("a"))) == "Parent(u='a', c=Child())"
+    assert pspec(Parent("a", Child("a")), "product") == "Parent(u=a, c=Child())"
+    assert repr(Parent("a", Child("b"))) == "Parent(u='a', c=Child(u='b'))"
+
+
+def test_nested_parents_pass_their_own_context() -> None:
+    # The inner Parent receives parent_u="a" and must replace it with "b".
+    outer = Parent("a", Parent("b", Child("b")))  # type: ignore[arg-type]
+    assert repr(outer) == "Parent(u='a', c=Parent(u='b', c=Child()))"
+    assert pspec(outer, "product") == "Parent(u=a, c=Parent(u=b, c=Child()))"
