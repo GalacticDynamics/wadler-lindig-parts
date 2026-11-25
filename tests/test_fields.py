@@ -153,49 +153,6 @@ def test_pfields_override_changes_repr_and_product_together() -> None:
     assert pspec(D(1, 2), "product") == "D(a=1)"
 
 
-@dataclasses.dataclass(repr=False)
-class Child(ReprMixin):
-    __repr_spec__ = "call"
-    u: str
-
-
-@pfields.dispatch
-def _(obj: Child, /, **kw: object) -> tuple[tuple[str, object], ...]:
-    return () if kw.get("parent_u") == obj.u else (("u", obj.u),)
-
-
-@dataclasses.dataclass(repr=False)
-class Parent(ReprMixin):
-    """Passes its ``u`` to its child on both routes, as a galax composite will."""
-
-    __repr_spec__ = "call"
-    u: str
-    c: Child
-
-    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
-        # Merge, so a parent nested in another parent overrides its context.
-        return fields_to_pdoc(self, pfields(self, **kw), **{**kw, "parent_u": self.u})
-
-
-@pparts.dispatch
-def _(obj: Parent, /, *, markup: str = "text", **kw: object) -> tuple:
-    to_kids = {**kw, "parent_u": obj.u}
-    return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **to_kids)
-
-
-def test_parent_context_keyword_reaches_child_pfields_on_both_routes() -> None:
-    assert repr(Parent("a", Child("a"))) == "Parent(u='a', c=Child())"
-    assert pspec(Parent("a", Child("a")), "product") == "Parent(u='a', c=Child())"
-    assert repr(Parent("a", Child("b"))) == "Parent(u='a', c=Child(u='b'))"
-
-
-def test_nested_parents_pass_their_own_context() -> None:
-    # The inner Parent receives parent_u="a" and must replace it with "b".
-    outer = Parent("a", Parent("b", Child("b")))  # type: ignore[arg-type]
-    assert repr(outer) == "Parent(u='a', c=Parent(u='b', c=Child()))"
-    assert pspec(outer, "product") == "Parent(u='a', c=Parent(u='b', c=Child()))"
-
-
 # ---------------------------------------------------------------------------
 # Notebook markup for call types
 
@@ -601,3 +558,6 @@ def test_a_container_sharing_its_childrens_rule_keeps_its_own_fields() -> None:
         "Group(u='s', kid=Group(u='m', kid=Node()))"
     )
     assert pspec(Group("m", Node("m")), "product") == "Group(u='m', kid=Node())"
+    assert pspec(Group("s", Group("m", Node("m"))), "product") == (
+        "Group(u='s', kid=Group(u='m', kid=Node()))"
+    )
