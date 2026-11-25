@@ -20,7 +20,7 @@ pip install wadler-lindig-parts
 Everything below runs in a Python session. Nothing needs a network, an
 account or a key.
 
-## Step 1: a type that cannot print itself yet
+## Step 1: a type that does not know its parts yet
 
 Let's start with a plain dataclass holding minutes and seconds, and two short
 methods that hand its printing to the engine:
@@ -47,20 +47,18 @@ passes on whatever spec the caller wrote, which is how `f"{d:html}"` will
 reach the engine later. No `repr=False` is needed: a `__repr__` written in
 the class body survives the dataclass decorator.
 
-Both methods route through the engine, and the engine does not yet know what a
-`Duration` is made of. Printing one now fails, and the error says exactly what
-is missing:
+Both methods route through the engine, and we have not told it yet what a
+`Duration` is made of. It is a dataclass, so the engine falls back to its
+fields:
 
 ```python
 >>> Duration(3, 7)
-Traceback (most recent call last):
-    ...
-TypeError: Duration registers no pparts, and its str/repr renders through this engine, so rendering it would recurse (register one with @pparts.dispatch)
+Duration(minutes=3, seconds=7)
 
 ```
 
-Telling the package what a duration is made of is the next step, and the only
-real code we write.
+It shows the two fields, and we want it to print `3:07`. Telling the package what a
+duration is made of is the next step, and the only real code we write.
 
 ## Step 2: say what it is made of
 

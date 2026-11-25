@@ -20,6 +20,10 @@ For the grammar these functions read, see
 
 ::: wadler_lindig_parts.render_options
 
+::: wadler_lindig_parts.pfields
+
+::: wadler_lindig_parts.Dataclass
+
 ::: wadler_lindig_parts.PPart
 
 ::: wadler_lindig_parts.PGroup
@@ -77,6 +81,10 @@ For the grammar these functions read, see
 ::: wadler_lindig_parts.parts_to_markup
 
 ::: wadler_lindig_parts.pparts_to_pdoc
+
+::: wadler_lindig_parts.fields_to_parts
+
+::: wadler_lindig_parts.fields_to_pdoc
 
 ::: wadler_lindig_parts.doc_to_str
 

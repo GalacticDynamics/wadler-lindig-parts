@@ -570,10 +570,10 @@ def test_unregistered_type_degrades_to_str():
     assert pspec(Opaque(), "html") == "<span>opaque</span>"
 
 
-def test_unregistered_type_rejects_a_value_spec():
-    """No value a spec could format: say so, not a different rendering."""
-    with pytest.raises(TypeError, match="does not support a value format spec"):
-        pspec(object(), ".2f")
+def test_unregistered_type_ignores_a_value_spec():
+    """No value a spec could format: the spec is ignored, as by any such value."""
+    o = object()
+    assert pspec(o, ".2f") == pspec(o, "product")
 
 
 def test_a_repr_routed_through_the_engine_without_pparts_does_not_recurse() -> None:
@@ -582,17 +582,15 @@ def test_a_repr_routed_through_the_engine_without_pparts_does_not_recurse() -> N
     A hand-written ``__repr__`` calling `pspec` has no `ReprMixin` dispatch to
     catch a missing `pparts`, so the fallback would render it with ``str`` and
     ``str`` would come straight back. The error names the omission instead.
+    (A dataclass no longer reaches this guard: it gets the field layout.)
     """
 
-    @dataclasses.dataclass
     class Loop:
-        x: int
-
         def __repr__(self) -> str:
             return pspec(self, "bare")
 
     with pytest.raises(TypeError, match="would recurse"):
-        repr(Loop(1))
+        repr(Loop())
 
 
 def test_the_recursion_guard_releases_its_object() -> None:

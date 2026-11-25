@@ -44,8 +44,8 @@ route `repr` and `format` through the engine with two short methods:
 
 `bare` in `__repr__` is the spec `repr` uses: product layout with no operator
 between the parts. `__format__` hands the caller's spec straight to the
-engine, which is what makes the markups below work. Printing one before
-`pparts` is registered raises a `TypeError` naming the omission.
+engine, which is what makes the markups below work. Until `pparts` is
+registered, a dataclass like this one prints its fields.
 
 Three fragments: an amount, a separator, a unit. The middle one is marked
 `sep` so that markups and the separator axis can treat it differently from

@@ -66,9 +66,9 @@ than `1 * 2`:
 For what you may put in a spec, see
 [Format spec grammar](../reference/spec-grammar.md).
 
-Printing one before `pparts` is registered raises a `TypeError` naming the
-omission, rather than looping through the `str` fallback and back into
-`__repr__`.
+Until `pparts` is registered, a dataclass like `Version` prints its fields.
+A type that is not a dataclass raises a `TypeError` naming the omission,
+rather than looping through the `str` fallback and back into `__repr__`.
 
 ## If your type's repr is a constructor expression
 
@@ -119,8 +119,10 @@ would silently shadow the inherited one:
 
 ```
 
-Two things change beyond the base class. `__repr_spec__` is parsed when the
-*class* is created, so a bad spec fails at definition rather than on first
+Two things change beyond the base class, and one does not: a `ReprMixin` type
+with a parts spec like `bare` still raises until its `pparts` is registered,
+even when it is a dataclass. `__repr_spec__` is parsed when the *class* is
+created, so a bad spec fails at definition rather than on first
 print, and reassigning it later has no effect. That also means an axis your
 own package registers has to be registered **before** the `class` statement
 runs — at import of your package, ahead of the modules defining those
@@ -128,16 +130,60 @@ classes, and across two distributions that is load order between them. A spec
 inside `__repr__` is parsed on each call, so it has no such ordering
 requirement.
 
+## If your type is a dataclass
+
+You may not need `pparts` at all. A dataclass with no registration is laid out
+by its fields, and each value renders as its own type does, so a markup or a
+value format spec reaches the values inside. A plain dataclass has no
+`__format__` that calls the engine, so these examples use `pspec`:
+
+```python
+>>> from wadler_lindig_parts.examples import Point, Term
+
+>>> @dataclasses.dataclass
+... class Segment:
+...     start: Point
+...     slope: Term
+
+>>> s = Segment(Point(0.0, 1.0), Term(2.0, "x"))
+>>> pspec(s, "product")
+'Segment(start=Point(x=0.0, y=1.0), slope=2.0 x)'
+>>> pspec(s, ".2f")
+'Segment(start=Point(x=0.00, y=1.00), slope=2.00 x)'
+
+```
+
+The fields that print come from `pfields`. Its default follows
+wadler-lindig: a field with `repr=False` is left out, and so is a field whose
+value is its default object. To change that for one type, register a `pfields`
+method; [How to write a constructor-form repr](write-a-constructor-repr.md)
+shows one.
+
+The layout is an ordinary `pparts` registration on `Dataclass`, a dispatch
+type every dataclass that is not a `ReprMixin` matches. A `pparts` method of
+your own for a dataclass therefore replaces the layout by ordinary dispatch.
+The layout does not consult a dataclass's own `__repr__`, `__str__` or
+`__pdoc__`, so a dataclass whose readable form is one of those (an
+`equinox.Enumeration` item, say) needs a `pparts` method to keep it.
+The values inside are rendered the same way: strings and non-integer numbers
+have registrations of their own (a string prints in quotes, a number takes the
+value spec), and anything unregistered degrades to its `str`. The `str` method
+is specific, so a broader registration of yours (a `Union` with `str`, or
+`collections.abc.Sequence`) does not handle a plain string; register `str` for
+that. A registration on `float`, `numbers.Real` or `numbers.Number` does take
+floats.
+
 ## If your type registers no `pparts` at all
 
-It still renders — it degrades to `str(obj)`. Asking it for a value format
-spec raises, since it has declared no value a spec could format, and so does
-rendering a type whose own `str` or `repr` routes back into the engine, which
-would otherwise loop.
+A dataclass gets the field layout above. Anything else still renders: it
+degrades to `str(obj)`. A value spec it cannot take is ignored, as it is by any
+such value, but a spec that is not a valid Python format spec raises before
+anything renders. Rendering a type whose own `str` or `repr` routes back into
+the engine raises too, since it would otherwise loop.
 
 ## See also
 
 - [How to nest formattable values](nest-formattable-values.md) — forward axes to values inside your type.
 - [How to write a constructor-form repr](write-a-constructor-repr.md) — the `call` side.
 - [How to add an axis](add-an-axis.md) — add a word to the grammar.
-- [API](../reference/api.md) — `PPart`, `PGroup`, `ReprMixin`, `pparts`.
+- [API](../reference/api.md) — `PPart`, `PGroup`, `ReprMixin`, `pparts`, `pfields`.
