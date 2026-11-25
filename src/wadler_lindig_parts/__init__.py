@@ -45,6 +45,7 @@ from .engine import (
     parse_spec,
     parts_to_doc,
     parts_to_markup,
+    pfields,
     PGroup,
     PPart,
     pparts,

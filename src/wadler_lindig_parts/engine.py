@@ -52,6 +52,7 @@ __all__ = (
     "parse_spec",
     "parts_to_doc",
     "parts_to_markup",
+    "pfields",
     "pparts",
     "pparts_to_pdoc",
     "pspec",
@@ -1324,6 +1325,56 @@ def pparts_to_pdoc(
     return parts_to_doc(
         pparts(obj, markup=markup, **kw), indent=indent, sep=sep, markup=markup
     )
+
+
+@dispatch.abstract
+def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
+    """Return the ``(name, value)`` pairs a dataclass shows when printed.
+
+    The extension point for which fields print, shared by both routes: the
+    ``call`` layout of a `ReprMixin` dataclass and the default parts layout of
+    any dataclass. Register a method to hide, rename or replace a field, and
+    ``repr`` and ``format`` change together.
+
+    The default keeps wadler-lindig's own rule, so it cannot disagree with
+    ``wl.pformat``: a field with ``repr=False`` is left out, and so is one whose
+    value *is* its default (identity, not equality, which is ambiguous for
+    arrays), unless ``hide_defaults=False``. ``**kw`` is whatever the caller
+    forwards, so a parent can pass context to its children's `pfields`.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import pfields
+    >>> from wadler_lindig_parts.examples import Point
+    >>> pfields(Point(1.0, 2.0))
+    (('x', 1.0), ('y', 2.0))
+
+    """
+    raise NotImplementedError  # pragma: no cover
+
+
+@dispatch  # type: ignore[no-redef]
+def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
+    """The fields of a dataclass instance, by wadler-lindig's rule."""
+    if not dataclasses.is_dataclass(obj) or isinstance(obj, type):
+        msg = (
+            f"{type(obj).__name__} is not a dataclass; register pfields for it "
+            "(@pfields.dispatch)"
+        )
+        raise TypeError(msg)
+    hide_defaults = kw.get("hide_defaults", True)
+    # Mirrors wadler_lindig._definitions._pformat_dataclass, name-mangling
+    # prefix included.
+    prefix = "_" + type(obj).__name__
+    out = []
+    for field in dataclasses.fields(obj):
+        if not field.repr:
+            continue
+        value = getattr(obj, field.name)
+        if hide_defaults and value is field.default:
+            continue
+        out.append((field.name.removeprefix(prefix), value))
+    return tuple(out)
 
 
 def _check_repr_spec(spec: str, parsed: Spec, /) -> None:
