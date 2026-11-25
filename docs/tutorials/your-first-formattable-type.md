@@ -57,7 +57,7 @@ Duration(minutes=3, seconds=7)
 
 ```
 
-That is correct, but it isn't the `3:07` we want. Telling the package what a
+It shows the two fields, and we want it to print `3:07`. Telling the package what a
 duration is made of is the next step, and the only real code we write.
 
 ## Step 2: say what it is made of
