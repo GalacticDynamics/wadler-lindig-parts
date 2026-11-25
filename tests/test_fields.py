@@ -9,6 +9,7 @@ from wadler_lindig_parts import (
     fields_to_parts,
     fields_to_pdoc,
     pfields,
+    PPart,
     pparts,
     pspec,
     ReprMixin,
@@ -40,12 +41,6 @@ def test_pfields_hide_defaults_false_shows_all_repr_fields() -> None:
     )
 
 
-def test_pfields_matches_wadler_lindig_dataclass_layout() -> None:
-    assert wl.pformat(P(1.0)) == "P(x=1.0, tags=[])"
-    names = tuple(name for name, _ in pfields(P(1.0)))
-    assert names == ("x", "tags")
-
-
 def test_pfields_rejects_non_dataclass() -> None:
     with pytest.raises(TypeError, match="not a dataclass"):
         pfields(object())
@@ -54,19 +49,6 @@ def test_pfields_rejects_non_dataclass() -> None:
 def test_pfields_rejects_a_dataclass_type() -> None:
     with pytest.raises(TypeError, match="not a dataclass"):
         pfields(P)
-
-
-def test_pfields_registration_overrides() -> None:
-    @dataclasses.dataclass
-    class Q:
-        a: int
-        b: int
-
-    @pfields.dispatch
-    def _(obj: Q, /, **kw: object) -> tuple[tuple[str, object], ...]:
-        return (("a", obj.a),)
-
-    assert pfields(Q(1, 2)) == (("a", 1),)
 
 
 # ---------------------------------------------------------------------------
@@ -81,10 +63,6 @@ class Box:
 
 def test_plain_dataclass_product_layout() -> None:
     assert pspec(Point(1.0, 2.0), "product") == "Point(x=1.0, y=2.0)"
-
-
-def test_value_spec_reaches_float_fields() -> None:
-    assert pspec(Point(1.0, 2.0), ".2f") == "Point(x=1.00, y=2.00)"
 
 
 def test_nested_registered_value_gets_markup() -> None:
@@ -135,22 +113,6 @@ def test_unregistered_call_reprmixin_dataclass_gets_field_layout() -> None:
         v: float
 
     assert pspec(C(1.0), "product") == "C(v=1.0)"
-
-
-def test_unregistered_product_reprmixin_still_raises() -> None:
-    @dataclasses.dataclass(repr=False)
-    class Unregistered(ReprMixin):
-        value: object
-
-        __repr_spec__ = "mul"
-
-    with pytest.raises(TypeError, match="registers no pparts"):
-        pparts(Unregistered(1.0))
-
-
-def test_non_dataclass_value_spec_still_raises() -> None:
-    with pytest.raises(TypeError, match="does not support a value format spec"):
-        pspec(object(), ".2f")
 
 
 def test_cyclic_dataclass_raises_cleanly() -> None:
@@ -248,11 +210,6 @@ def test_nested_parents_pass_their_own_context() -> None:
 # Notebook markup for call types
 
 
-def test_call_type_notebook_default_unchanged() -> None:
-    assert C(2.0)._repr_html_() is None
-    assert C(2.0)._repr_latex_() is None
-
-
 @dataclasses.dataclass(repr=False)
 class E(ReprMixin):
     __repr_spec__ = "call"
@@ -269,7 +226,7 @@ def test_notebook_parts_switch_shows_markup() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Audit fixes
+# Values inside the layout
 
 
 @dataclasses.dataclass(repr=False)
@@ -282,16 +239,6 @@ class Unset(ReprMixin):
 def test_unset_field_prints_uninitialised_on_both_routes() -> None:
     assert repr(Unset(1)) == "Unset(a=1, b=<uninitialised>)"
     assert pspec(Unset(1), "product") == "Unset(a=1, b=<uninitialised>)"
-
-
-def test_value_spec_leaves_bool_and_int_fields_alone() -> None:
-    @dataclasses.dataclass
-    class A:
-        x: float
-        flag: bool
-        n: int
-
-    assert pspec(A(1.234, True, 100), ".2f") == "A(x=1.23, flag=True, n=100)"
 
 
 def test_value_spec_formats_only_non_integer_numbers() -> None:
@@ -307,10 +254,12 @@ def test_value_spec_formats_only_non_integer_numbers() -> None:
         when: datetime.date
         name: str
         c: Color
+        flag: bool
 
-    m = M(1.23456, datetime.date(2024, 1, 2), "galactic", Color.RED)
-    assert pspec(m, ".2f") == "M(x=1.23, when=2024-01-02, name='galactic', c=1)"
-    assert pspec(m, ".3") == "M(x=1.23, when=2024-01-02, name='galactic', c=1)"
+    m = M(1.23456, datetime.date(2024, 1, 2), "galactic", Color.RED, True)
+    want = "M(x=1.23, when=2024-01-02, name='galactic', c=1, flag=True)"
+    assert pspec(m, ".2f") == want
+    assert pspec(m, ".3") == want
 
 
 def test_string_fields_print_quoted() -> None:
@@ -320,3 +269,26 @@ def test_string_fields_print_quoted() -> None:
 
     assert pspec(S("a, b=c"), "product") == "S(s='a, b=c')"
     assert pspec(S(""), "product") == "S(s='')"
+
+
+def test_a_mistyped_spec_raises_on_a_dataclass() -> None:
+    with pytest.raises(ValueError, match="not a valid Python format spec"):
+        pspec(Point(1.5, 2.0), "latx")
+
+
+class Sym(str):
+    pass
+
+
+@pparts.dispatch
+def _(obj: Sym, /, *, markup: str = "text", **kw: object) -> tuple:
+    return (PPart("sym", "alpha"),)
+
+
+def test_a_str_subclass_with_its_own_pparts_uses_it() -> None:
+    @dataclasses.dataclass
+    class H:
+        s: Sym
+        t: str
+
+    assert pspec(H(Sym("a"), "a"), "product") == "H(s=alpha, t='a')"

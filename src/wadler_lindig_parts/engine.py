@@ -469,22 +469,19 @@ def _fallback_text(obj: Any, /) -> str:
         "renders through this engine, so rendering it would recurse "
         "(register one with @pparts.dispatch)"
     )
-    with _no_reentry("ids", obj, msg):
+    with _no_reentry(obj, msg):
         return str(obj)
 
 
 @contextlib.contextmanager
-def _no_reentry(slot: str, obj: Any, msg: str, /) -> Iterator[None]:
+def _no_reentry(obj: Any, msg: str, /) -> Iterator[None]:
     """Raise ``TypeError(msg)`` if this thread is already rendering ``obj``.
 
-    ``slot`` names the thread-local set of ``id``s, so separate guards do not
-    trip each other. An ``id`` is stable while the object is alive, and it is:
-    the caller's frame holds a reference.
+    An ``id`` is stable while the object is alive, and it is: the caller's
+    frame holds a reference. The `str` fallback and the field layout share the
+    set; they see disjoint objects (non-dataclasses and dataclasses).
     """
-    seen: set[int] | None = getattr(_rendering, slot, None)
-    if seen is None:
-        seen = set()
-        setattr(_rendering, slot, seen)
+    seen: set[int] = _rendering.__dict__.setdefault("ids", set())
     key = id(obj)
     if key in seen:
         raise TypeError(msg)
@@ -509,9 +506,18 @@ def _takes_value_spec(value: Any, /) -> bool:
     return method is not function.resolve_method(Signature(object))[0]
 
 
-def _is_fractional(value: Any, /) -> bool:
-    """Whether ``value`` is a number that is not an integer (nor a bool)."""
-    return isinstance(value, numbers.Number) and not isinstance(value, numbers.Integral)
+def _format_spec_error(text: str, /) -> ValueError | None:
+    """The error if no float, int or str accepts ``text`` as a format spec."""
+    # Elements need not be floats, so any probe type that accepts it will do.
+    first = None
+    for probe in (0.0, 0, ""):
+        try:
+            format(probe, text)
+        except ValueError as e:
+            first = first or e
+        else:
+            return None
+    return first
 
 
 def _field_parts(
@@ -524,11 +530,17 @@ def _field_parts(
     value spec: ``format`` would print ``True`` as ``1.00``, cut ``".3"`` from a
     string, or read the spec as a date's strftime pattern.
     """
+    if _takes_value_spec(value):
+        return pparts(value, markup=markup, value_spec=value_spec, **kw)
     if isinstance(value, str):
         return (PPart("value", repr(value)),)
-    if value_spec is None or _takes_value_spec(value):
-        return pparts(value, markup=markup, value_spec=value_spec, **kw)
-    if _is_fractional(value):
+    # issubclass on the type, so pyright does not narrow ``value`` for `pparts`.
+    t = type(value)
+    if (
+        value_spec is not None
+        and issubclass(t, numbers.Number)
+        and not issubclass(t, numbers.Integral)
+    ):
         with contextlib.suppress(TypeError, ValueError):
             return (PPart("value", format(value, value_spec)),)
     return pparts(value, markup=markup, **kw)
@@ -543,8 +555,9 @@ def fields_to_parts(
     `pparts` of its own renders as. Each value is rendered by its own `pparts`
     with ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside.
     A value spec goes to a value only if it can take it: a value with its own
-    `pparts`, a dataclass, or one ``format(value, spec)`` accepts. Any other
-    value prints as its text, so ``f"{x:.2f}"`` does not fail on a string field.
+    `pparts`, a dataclass, or a non-integer number. Any other value prints as
+    its text, and a string in quotes, so ``f"{x:.2f}"`` neither fails on nor
+    changes a string field. A spec that no value could accept raises.
 
     Call it from your own `pparts` to pass a context keyword to the children,
     which receive it in their `pparts` and `pfields`.
@@ -558,8 +571,12 @@ def fields_to_parts(
     'Point(x=1.0)'
 
     """
+    if (spec := kw.get("value_spec")) is not None and (
+        error := _format_spec_error(spec)
+    ) is not None:
+        raise error
     msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
-    with _no_reentry("fields", obj, msg):
+    with _no_reentry(obj, msg):
         out: list[Any] = [PPart("name", f"{type(obj).__name__}(", "sep")]
         for i, (name, value) in enumerate(fields):
             if i:
@@ -1525,19 +1542,10 @@ def _check_repr_spec(spec: str, parsed: Spec, /) -> None:
     first print.
     """
     text = _free_text(parsed)
-    if text is None:
+    if text is None or (error := _format_spec_error(text)) is None:
         return
-    # Elements need not be floats, so any probe type that accepts it will do.
-    first = None
-    for probe in (0.0, 0, ""):
-        try:
-            format(probe, text)
-        except ValueError as e:
-            first = first or e
-        else:
-            return
     msg = f"{text!r} is not a valid Python format spec"
-    raise bad_spec(None, spec, msg) from first
+    raise bad_spec(None, spec, msg) from error
 
 
 class ReprMixin:
@@ -1613,14 +1621,16 @@ class ReprMixin:
         parts = pparts(self, markup=markup, **layout)
         return parts_to_markup(parts, markup=markup, sep=sep)
 
-    def _repr_is_constructor(self) -> bool:
-        """Whether ``repr`` is a constructor expression, not fragments.
+    def _notebook_shows_repr(self) -> bool:
+        """Whether a notebook shows ``repr`` instead of markup.
 
-        It is under a ``call`` spec, when the constructor form comes from
-        wadler-lindig's dataclass layout or from a ``__pdoc__`` of the type's
-        own. A ``call`` type with neither still renders its fragments.
+        It does when ``repr`` is a constructor expression and the class did not
+        set ``__notebook_parts__``. ``repr`` is a constructor expression under a
+        ``call`` spec, when the constructor form comes from the dataclass field
+        layout or from a ``__pdoc__`` of the type's own. A ``call`` type with
+        neither still renders its fragments.
         """
-        if self._repr_spec_parsed["layout"] != "call":
+        if self.__notebook_parts__ or self._repr_spec_parsed["layout"] != "call":
             return False
         own_pdoc = type(self).__pdoc__ is not ReprMixin.__pdoc__
         return own_pdoc or dataclasses.is_dataclass(self)
@@ -1628,12 +1638,12 @@ class ReprMixin:
     def _repr_html_(self) -> str | None:
         # A constructor expression has no markup form; `None` tells IPython to
         # show the repr instead, unless the class asked for its parts there.
-        if self._repr_is_constructor() and not self.__notebook_parts__:
+        if self._notebook_shows_repr():
             return None
         return self._flat_markup("html")
 
     def _repr_latex_(self) -> str | None:
-        if self._repr_is_constructor() and not self.__notebook_parts__:
+        if self._notebook_shows_repr():
             return None
         return self._flat_markup("latex")
 
