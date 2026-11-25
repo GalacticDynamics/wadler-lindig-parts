@@ -118,15 +118,15 @@ def test_missing_pparts_raises_on_every_route_that_needs_it(spec):
         __repr_spec__ = spec
 
     msg = "N subclasses ReprMixin but registers no pparts"
-    # A ``call`` dataclass renders its fields without any fragments, so only
-    # the fragment routes need the missing registration.
-    calls = [lambda o: f"{o:mul}"]
+    # A ``call`` dataclass asked for its constructor form, and its fields are
+    # its parts, so every route renders them. Only a parts spec needs the
+    # missing registration, and there every route raises.
     if spec == "call":
         for call in (repr, str, wl.pformat):
             assert call(N(1)).endswith(".N(x=1)")
-    else:
-        calls += [repr, str, wl.pformat]
-    for call in calls:
+        assert f"{N(1):mul}" == "N(x=1)"
+        return
+    for call in (lambda o: f"{o:mul}", repr, str, wl.pformat):
         with pytest.raises(TypeError, match=msg):
             call(N(1))
 

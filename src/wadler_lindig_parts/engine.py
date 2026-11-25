@@ -46,6 +46,7 @@ __all__ = (
     "FLAT",
     "doc_part",
     "doc_to_str",
+    "fields_to_parts",
     "inert_axes",
     "markup_table",
     "math_doc",
@@ -74,7 +75,7 @@ from types import MappingProxyType
 from typing import Any, ClassVar, Final, NamedTuple
 
 import wadler_lindig as wl
-from plum import Dispatcher
+from plum import Dispatcher, Signature
 
 
 #: A dispatcher private to this module.
@@ -406,18 +407,23 @@ def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
 def pparts(
     obj: Any, /, *, markup: str = "text", value_spec: str | None = None, **kw: Any
 ) -> tuple[Any, ...]:
-    """Fall back to `str` for a type with no registration.
+    """Lay out a dataclass by its fields, and fall back to `str` for the rest.
 
-    This is a *display* path, so an unregistered type must degrade rather than
-    raise: without this method one unregistered field would poison an entire
-    object's `_repr_html_` in a notebook cell. `__pdoc__` already degrades this
-    way through wadler-lindig's dataclass fallback.
+    A dataclass instance with no registration gets the ``name=value`` layout
+    of `fields_to_parts`, over its `pfields`. The fields are its declared parts,
+    so markups and value specs reach each value.
 
-    A ``value_spec`` is the one thing this cannot degrade on. It is applied
-    by `pvalue` to the value a type declares through `pparts`, and this path
-    renders through `str` instead -- so silently dropping the spec would answer
-    a specific request with a different rendering. That is an error, not a
-    fallback.
+    Anything else is a *display* path, so an unregistered type must degrade
+    rather than raise: without this method one unregistered field would poison
+    an entire object's `_repr_html_` in a notebook cell. `__pdoc__` already
+    degrades this way through wadler-lindig's dataclass fallback.
+
+    A ``value_spec`` is the one thing that cannot degrade at the top level. It
+    is applied by `pvalue` to the value a type declares through `pparts`, and
+    this path renders through `str` instead -- so silently dropping the spec
+    would answer a specific request with a different rendering. That is an
+    error, not a fallback. (Inside a dataclass layout, a field that cannot take
+    the spec prints as text; see `fields_to_parts`.)
 
     Examples
     --------
@@ -426,6 +432,10 @@ def pparts(
     (PPart(role='value', text='<object object at ...>', kind='content', doc=None),)
 
     """
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return fields_to_parts(
+            obj, pfields(obj, **kw), markup=markup, value_spec=value_spec, **kw
+        )
     if value_spec is not None:
         msg = (
             f"{type(obj).__name__} does not support a value format spec "
@@ -465,6 +475,76 @@ def _fallback_text(obj: Any, /) -> str:
     seen.add(key)
     try:
         return str(obj)
+    finally:
+        seen.discard(key)
+
+
+def _takes_value_spec(value: Any, /) -> bool:
+    """Whether ``value`` declares parts a value spec can reach.
+
+    True for a dataclass instance (its fields carry the spec on) and for any
+    type with a `pparts` method more specific than the `Any` fallback.
+    """
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return True
+    method, _ = pparts.resolve_method(Signature(type(value)))
+    return method is not pparts.resolve_method(Signature(object))[0]
+
+
+def _field_parts(value: Any, /, *, markup: str, **kw: Any) -> tuple[Any, ...]:
+    """One field's parts, with the value spec only where the value can take it."""
+    spec = kw.get("value_spec")
+    if spec is None or _takes_value_spec(value):
+        return pparts(value, markup=markup, **kw)
+    kw = {k: v for k, v in kw.items() if k != "value_spec"}
+    try:
+        text = format(value, spec)
+    except (TypeError, ValueError):
+        return pparts(value, markup=markup, **kw)
+    return (PPart("value", text),)
+
+
+def fields_to_parts(
+    obj: Any, fields: Iterable[tuple[str, Any]], /, *, markup: str = "text", **kw: Any
+) -> tuple[Any, ...]:
+    """Lay out ``obj`` as ``Name(field=value, ...)`` from ``(name, value)`` pairs.
+
+    The parts counterpart of `fields_to_pdoc`, and what a dataclass with no
+    `pparts` of its own renders as. Each value is rendered by its own `pparts`
+    with ``markup`` and ``**kw`` forwarded, so a spec reaches the values inside.
+    A value spec goes to a value only if it can take it: a value with its own
+    `pparts`, a dataclass, or one ``format(value, spec)`` accepts. Any other
+    value prints as its text, so ``f"{x:.2f}"`` does not fail on a string field.
+
+    Call it from your own `pparts` to pass a context keyword to the children,
+    which receive it in their `pparts` and `pfields`.
+
+    Examples
+    --------
+    >>> from wadler_lindig_parts import fields_to_parts, parts_to_markup
+    >>> from wadler_lindig_parts.examples import Point
+    >>> p = Point(1.0, 2.0)
+    >>> parts_to_markup(fields_to_parts(p, [("x", p.x)]))
+    'Point(x=1.0)'
+
+    """
+    seen: set[int] | None = getattr(_rendering, "fields", None)
+    if seen is None:
+        seen = _rendering.fields = set()
+    key = id(obj)
+    if key in seen:
+        msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
+        raise TypeError(msg)
+    seen.add(key)
+    try:
+        out: list[Any] = [PPart("name", f"{type(obj).__name__}(", "sep")]
+        for i, (name, value) in enumerate(fields):
+            if i:
+                out.append(PPart("comma", ", ", "sep"))
+            out.append(PPart("key", f"{name}=", "sep"))
+            out.append(PGroup(name, _field_parts(value, markup=markup, **kw)))
+        out.append(PPart("close", ")", "sep"))
+        return tuple(out)
     finally:
         seen.discard(key)
 
@@ -1511,8 +1591,13 @@ def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, 
     """Refuse a `ReprMixin` type that registered no `pparts` of its own.
 
     Without this the generic `str` fallback would call back into the mixin's
-    ``__str__`` and recurse forever.
+    ``__str__`` and recurse forever. The one exception is a dataclass whose
+    spec is ``call``: it asked for its constructor form, its fields are its
+    parts, and it gets the `fields_to_parts` layout. A mixin type with a parts
+    spec still raises, so a missing registration cannot render plausibly.
     """
+    if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
+        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "
         "(register one with @pparts.dispatch)"

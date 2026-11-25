@@ -37,6 +37,7 @@ from .engine import (
     bad_spec,
     doc_part,
     doc_to_str,
+    fields_to_parts,
     FLAT,
     inert_axes,
     markup_table,

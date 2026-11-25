@@ -5,7 +5,8 @@ import dataclasses
 import pytest
 import wadler_lindig as wl
 
-from wadler_lindig_parts import pfields
+from wadler_lindig_parts import pfields, pparts, pspec, ReprMixin
+from wadler_lindig_parts.examples import Point, Term
 
 
 @dataclasses.dataclass
@@ -59,3 +60,98 @@ def test_pfields_registration_overrides() -> None:
         return (("a", obj.a),)
 
     assert pfields(Q(1, 2)) == (("a", 1),)
+
+
+# ---------------------------------------------------------------------------
+# The parts layout for dataclasses
+
+
+@dataclasses.dataclass
+class Box:
+    t: Term
+    label: str
+
+
+def test_plain_dataclass_product_layout() -> None:
+    assert pspec(Point(1.0, 2.0), "product") == "Point(x=1.0, y=2.0)"
+
+
+def test_value_spec_reaches_float_fields() -> None:
+    assert pspec(Point(1.0, 2.0), ".2f") == "Point(x=1.00, y=2.00)"
+
+
+def test_nested_registered_value_gets_markup() -> None:
+    assert (
+        pspec(Box(Term(1.0, "x"), "a"), "html")
+        == "Box(t=<span>1.0</span> <span>x</span>, label=<span>a</span>)"
+    )
+
+
+def test_nested_registered_value_gets_value_spec() -> None:
+    assert pspec(Box(Term(1.0, "x"), "a"), ".2f") == "Box(t=1.00 x, label=a)"
+
+
+def test_unformattable_field_falls_back_to_text_under_spec() -> None:
+    @dataclasses.dataclass
+    class L:
+        xs: list
+
+    assert pspec(L([1, 2]), ".2f") == "L(xs=[1, 2])"
+
+
+def test_nested_dataclass_gets_the_layout_and_the_spec() -> None:
+    @dataclasses.dataclass
+    class Outer:
+        p: Point
+
+    assert pspec(Outer(Point(1.0, 2.0)), ".1f") == "Outer(p=Point(x=1.0, y=2.0))"
+    assert pspec(Outer(Point(1.0, 2.0)), ".2f") == "Outer(p=Point(x=1.00, y=2.00))"
+
+
+def test_pfields_override_changes_the_parts_layout() -> None:
+    @dataclasses.dataclass
+    class R:
+        a: int
+        b: int
+
+    @pfields.dispatch
+    def _(obj: R, /, **kw: object) -> tuple[tuple[str, object], ...]:
+        return (("b", obj.b),)
+
+    assert pspec(R(1, 2), "product") == "R(b=2)"
+
+
+def test_unregistered_call_reprmixin_dataclass_gets_field_layout() -> None:
+    @dataclasses.dataclass(repr=False)
+    class C(ReprMixin):
+        __repr_spec__ = "call"
+        v: float
+
+    assert pspec(C(1.0), "product") == "C(v=1.0)"
+
+
+def test_unregistered_product_reprmixin_still_raises() -> None:
+    @dataclasses.dataclass(repr=False)
+    class Unregistered(ReprMixin):
+        value: object
+
+        __repr_spec__ = "mul"
+
+    with pytest.raises(TypeError, match="registers no pparts"):
+        pparts(Unregistered(1.0))
+
+
+def test_non_dataclass_value_spec_still_raises() -> None:
+    with pytest.raises(TypeError, match="does not support a value format spec"):
+        pspec(object(), ".2f")
+
+
+def test_cyclic_dataclass_raises_cleanly() -> None:
+    @dataclasses.dataclass
+    class N:
+        nxt: object = None
+
+    n = N()
+    n.nxt = n
+    with pytest.raises(TypeError, match="contains itself"):
+        pspec(n, "product")
