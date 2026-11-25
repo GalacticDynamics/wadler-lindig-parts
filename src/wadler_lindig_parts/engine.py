@@ -414,8 +414,7 @@ def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
 
     This is a *display* path, so an unregistered type must degrade rather than
     raise: without this method one unregistered field would poison an entire
-    object's `_repr_html_` in a notebook cell. `__pdoc__` already degrades this
-    way through wadler-lindig's dataclass fallback.
+    object's `_repr_html_` in a notebook cell.
 
     A value spec is ignored here, as it is by any value that cannot take it.
     `pspec` rejects a spec that is not a valid Python format spec before
@@ -431,7 +430,8 @@ def pparts(obj: Any, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
     return (PPart("value", _fallback_text(obj)),)
 
 
-#: Objects whose `str` this thread is already inside, from `_pparts_fallback`.
+#: Objects this thread is already rendering, through the `str` fallback or the
+#: field layout (see `_no_reentry`).
 #: Keyed by `id`, which is stable and unique while the object is alive -- and it
 #: is alive, since the frame that put it here holds a reference.
 _rendering = threading.local()
@@ -1494,7 +1494,7 @@ def _check_free_text(spec: str, parsed: Spec, /, obj: Any = None) -> None:
             first = first or e
         else:
             return
-    msg = f"{text!r} is not a valid Python format spec"
+    msg = f"{text!r} is not a valid Python format spec ({first})"
     raise bad_spec(obj, spec, msg) from first
 
 
@@ -1664,7 +1664,10 @@ class Dataclass(abc.ABC):
         return dataclasses.is_dataclass(other) and not issubclass(other, ReprMixin)
 
 
-@pparts.dispatch  # type: ignore[misc]
+# Negative precedences: a downstream method on an unrelated base class (or on
+# ``np.generic``) that also matches wins, instead of an ambiguous lookup. The
+# two differ so a dataclass that is also a number resolves to the layout.
+@pparts.dispatch(precedence=-1)  # type: ignore[misc]
 def _pparts_dataclass(
     obj: Dataclass, /, *, markup: str = "text", **kw: Any
 ) -> tuple[Any, ...]:
@@ -1708,7 +1711,7 @@ class _Fractional(abc.ABC):
         )
 
 
-@pparts.dispatch  # type: ignore[misc]
+@pparts.dispatch(precedence=-2)  # type: ignore[misc]
 def _pparts_number(
     obj: _Fractional,
     /,

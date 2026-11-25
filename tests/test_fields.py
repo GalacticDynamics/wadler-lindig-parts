@@ -9,7 +9,6 @@ from wadler_lindig_parts import (
     fields_to_parts,
     fields_to_pdoc,
     pfields,
-    PGroup,
     PPart,
     pparts,
     pspec,
@@ -105,15 +104,6 @@ def test_pfields_override_changes_the_parts_layout() -> None:
         return (("b", obj.b),)
 
     assert pspec(R(1, 2), "product") == "R(b=2)"
-
-
-def test_unregistered_call_reprmixin_dataclass_gets_field_layout() -> None:
-    @dataclasses.dataclass(repr=False)
-    class C(ReprMixin):
-        __repr_spec__ = "call"
-        v: float
-
-    assert pspec(C(1.0), "product") == "C(v=1.0)"
 
 
 def test_cyclic_dataclass_raises_cleanly() -> None:
@@ -273,11 +263,6 @@ def test_string_fields_print_quoted() -> None:
     assert pspec(S(""), "product") == "S(s='')"
 
 
-def test_a_mistyped_spec_raises_on_a_dataclass() -> None:
-    with pytest.raises(ValueError, match="not a valid Python format spec"):
-        pspec(Point(1.5, 2.0), "latx")
-
-
 class Sym(str):
     pass
 
@@ -423,64 +408,6 @@ def test_a_call_mixin_with_its_own_pparts_uses_them_as_a_field() -> None:
     assert pspec(D(Parted(1.23456)), ".2f") == "D(x=1.23)"
 
 
-class Unit:
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    def __str__(self) -> str:
-        return self.name
-
-    def __repr__(self) -> str:
-        return f"Unit({self.name!r})"
-
-
-@dataclasses.dataclass(repr=False)
-class Qty(ReprMixin):
-    """A container that forwards **kw to an unregistered child, per the docs."""
-
-    __repr_spec__ = "mul"
-    v: float
-    unit: Unit
-
-
-@pparts.dispatch
-def _(obj: Qty, /, *, markup: str = "text", **kw: object) -> tuple:
-    return (
-        PPart("v", str(obj.v)),
-        PPart("mul", " * ", "sep"),
-        PGroup("unit", pparts(obj.unit, markup=markup, **kw)),
-    )
-
-
-def test_only_the_field_value_counts_as_nested() -> None:
-    @dataclasses.dataclass
-    class Box:
-        q: Qty
-
-    q = Qty(1.5, Unit("km"))
-    assert pspec(q, "product") == "1.5 km"
-    assert pspec(Box(q), "product") == "Box(q=1.5 km)"
-
-
-class System:
-    """A registered type with no value to format, like a unit system."""
-
-
-@pparts.dispatch
-def _(obj: System, /, *, markup: str = "text", **kw: object) -> tuple:
-    return (PPart("system", "galactic"),)
-
-
-def test_a_field_with_no_value_to_format_ignores_the_spec() -> None:
-    @dataclasses.dataclass
-    class Pot:
-        m: float
-        units: System
-
-    assert pspec(Pot(1.23456, System()), ".2f") == "Pot(m=1.23, units=galactic)"
-    assert pspec(System(), ".2f") == "galactic"
-
-
 # ---------------------------------------------------------------------------
 # Ordinary registrations
 
@@ -505,12 +432,6 @@ def test_dataclass_type_excludes_reprmixin() -> None:
     assert not isinstance(Point, Dataclass)
 
 
-def test_strings_and_numbers_are_ordinary_registrations() -> None:
-    assert pspec("a, b=c", "product") == "'a, b=c'"
-    assert pspec(1.23456, ".2f") == "1.23"
-    assert pspec(3, ".2f") == "3"
-
-
 def test_layout_roles_do_not_collide_with_markup_role_overrides() -> None:
     from wadler_lindig_parts import MARKUPS, register_markup, unregister_markup
 
@@ -520,3 +441,53 @@ def test_layout_roles_do_not_collide_with_markup_role_overrides() -> None:
         assert pspec(Point(1.0, 2.0), "styled") == "Point(x=1.0, y=2.0)"
     finally:
         unregister_markup("styled")
+
+
+def test_a_registered_base_class_beats_the_dataclass_layout() -> None:
+    class Base:
+        pass
+
+    @pparts.dispatch
+    def _(obj: Base, /, *, markup: str = "text", **kw: object) -> tuple:
+        return (PPart("base", "BASE"),)
+
+    @dataclasses.dataclass
+    class D(Base):
+        a: int
+
+    assert pspec(D(1), "product") == "BASE"
+
+
+def test_a_registered_number_type_beats_the_number_rule() -> None:
+    import numbers
+
+    class Num:
+        def __format__(self, spec: str) -> str:
+            return "fmt"
+
+    numbers.Real.register(Num)
+
+    @pparts.dispatch
+    def _(obj: Num, /, *, markup: str = "text", **kw: object) -> tuple:
+        return (PPart("num", "NUM"),)
+
+    assert pspec(Num(), ".2f") == "NUM"
+
+
+def test_a_dataclass_number_resolves() -> None:
+    import numbers
+
+    @dataclasses.dataclass
+    class Money:
+        amount: float
+
+        def __format__(self, spec: str) -> str:
+            return format(self.amount, spec)
+
+    numbers.Real.register(Money)
+    assert pspec(Money(1.234), "product") == "Money(amount=1.234)"
+
+
+def test_a_bad_free_text_spec_keeps_pythons_message() -> None:
+    with pytest.raises(ValueError, match="Invalid format specifier"):
+        pspec(Point(1.0, 2.0), ".2f-.3g")

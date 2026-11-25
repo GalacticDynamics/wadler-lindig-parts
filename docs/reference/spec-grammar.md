@@ -68,15 +68,29 @@ intact ([why](../explanation/why-formatting-is-one-engine.md)):
 
 ```
 
-A token that is not a keyword is therefore never an error on its own — it
-becomes the value spec, and a type whose fragments do not format values
-ignores it silently.
+`parse_spec` therefore accepts a token that is not a keyword: it becomes the
+value spec.
 
 ```python
 >>> parse_spec("nonsense")["value"]
 'nonsense'
 
 ```
+
+`pspec` then rejects free text that no float, int or str accepts as a Python
+format spec, before anything renders, so a typo is an error:
+
+```python
+>>> from wadler_lindig_parts import pspec
+>>> from wadler_lindig_parts.examples import Term
+>>> pspec(Term(1.0, "x"), "nonsense")
+Traceback (most recent call last):
+    ...
+ValueError: invalid format spec 'nonsense' for Term: 'nonsense' is not a valid Python format spec...
+
+```
+
+A valid spec that a value cannot take is ignored by that value.
 
 ## Keyword order
 

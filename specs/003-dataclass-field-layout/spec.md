@@ -65,8 +65,10 @@ Anything unregistered degrades to its `str`, as in 0.3.
 
 ## Where a value spec goes
 
-A value spec formats the values that can take it and is ignored by every other
-value, wherever it sits. `pspec` rejects a spec that is not a valid Python
+A value spec formats the values that can take it. An unregistered value, a
+string, an integer, a bool and a type with no value to format ignore it,
+wherever they sit. A type that formats its own payload through `pvalue` still
+decides for itself: a `Term` holding a list raises under `.2f`, as in 0.3. `pspec` rejects a spec that is not a valid Python
 format spec before anything renders, so a typo such as `latx` still raises. A
 spec that is valid but changes nothing (on an object with no numbers) is a
 silent no-op; whether that should raise is open in issue #29, because comparing
