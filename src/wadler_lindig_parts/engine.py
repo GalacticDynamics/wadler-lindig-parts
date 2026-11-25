@@ -488,8 +488,10 @@ def _takes_value_spec(value: Any, /) -> bool:
     """
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return True
-    method, _ = pparts.resolve_method(Signature(type(value)))
-    return method is not pparts.resolve_method(Signature(object))[0]
+    # `pparts` is a plum Function at runtime; its static type is the function.
+    function: Any = pparts
+    method, _ = function.resolve_method(Signature(type(value)))
+    return method is not function.resolve_method(Signature(object))[0]
 
 
 def _field_parts(value: Any, /, *, markup: str, **kw: Any) -> tuple[Any, ...]:

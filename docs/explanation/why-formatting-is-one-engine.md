@@ -176,8 +176,8 @@ the type", and the two types answer differently because they have told
 `wadler_lindig` different things.
 
 A type whose `repr` should be a constructor expression says so with a `call`
-spec. If it is a dataclass, the mixin then steps aside and wadler-lindig's
-field layout answers, so the mixin and a plain dataclass agree:
+spec. If it is a dataclass, the mixin then builds wadler-lindig's field
+layout from `pfields`, so the mixin and a plain dataclass agree:
 
 ```python
 >>> import dataclasses

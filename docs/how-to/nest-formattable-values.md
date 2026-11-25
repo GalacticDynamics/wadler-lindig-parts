@@ -69,8 +69,58 @@ your own tests; a reviewer will not catch it.
 It degrades to `str(obj)` like any unregistered type. Wrap it in `PPart` with
 a role of its own if you want a markup to be able to style it.
 
+A dataclass field is the exception: it gets the field layout, so the spec
+reaches its values too.
+
+## Pass context from a parent to its children
+
+A container sometimes knows something its children should use, such as a unit
+they share and can leave out. Put it in `**kw`: every child's `pparts` and
+`pfields` receive it. For a dataclass, `fields_to_parts` and `fields_to_pdoc`
+build the default layouts, so a container can add one keyword and keep them:
+
+```python
+>>> from wadler_lindig_parts import (
+...     ReprMixin, fields_to_parts, fields_to_pdoc, pfields,
+... )
+
+>>> @dataclasses.dataclass(repr=False)
+... class Leaf(ReprMixin):
+...     __repr_spec__ = "call"
+...     unit: str
+
+>>> @pfields.dispatch
+... def _(obj: Leaf, /, **kw):
+...     return () if kw.get("parent_unit") == obj.unit else (("unit", obj.unit),)
+
+>>> @dataclasses.dataclass(repr=False)
+... class Tree(ReprMixin):
+...     __repr_spec__ = "call"
+...     unit: str
+...     leaf: Leaf
+...
+...     def __pdoc__(self, **kw):
+...         kw = {**kw, "parent_unit": self.unit}
+...         return fields_to_pdoc(self, pfields(self, **kw), **kw)
+
+>>> @pparts.dispatch
+... def _(obj: Tree, /, *, markup="text", **kw):
+...     kw = {**kw, "parent_unit": obj.unit}
+...     return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+
+>>> Tree("m", Leaf("m"))
+Tree(unit='m', leaf=Leaf())
+>>> f"{Tree('m', Leaf('s')):product}"
+'Tree(unit=m, leaf=Leaf(unit=s))'
+
+```
+
+Merge the keyword into `kw` as shown, rather than passing it beside `**kw`. A
+container nested inside another then replaces its parent's value instead of
+raising a duplicate-keyword error.
+
 ## See also
 
 - [How to make a type formattable](make-a-type-formattable.md) — the single-level case.
 - [Axes, layouts and markups](../reference/axes.md) — what is being forwarded.
-- [API](../reference/api.md) — `PGroup`, `pparts`.
+- [API](../reference/api.md) — `PGroup`, `pparts`, `pfields`, `fields_to_parts`, `fields_to_pdoc`.

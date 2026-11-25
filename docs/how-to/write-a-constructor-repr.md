@@ -167,6 +167,45 @@ dataclass using `ReprMixin` with a `call` spec gets the same:
 
 ```
 
+The mixin builds that form from `pfields`, the same list of fields its parts
+layout uses. A `pfields` method therefore changes `repr` and `format` together:
+
+```python
+>>> from wadler_lindig_parts import pfields
+
+>>> @dataclasses.dataclass(repr=False)
+... class Window(ReprMixin):
+...     __repr_spec__ = "call"
+...     lo: float
+...     hi: float
+...     label: str = ""
+
+>>> @pfields.dispatch
+... def _(obj: Window, /, **kw):
+...     return (("lo", obj.lo), ("hi", obj.hi))
+
+>>> Window(0.0, 1.0, "unit")
+Window(lo=0.0, hi=1.0)
+>>> f"{Window(0.0, 1.0, 'unit'):.1e}"
+'Window(lo=0.0e+00, hi=1.0e+00)'
+
+```
+
+A notebook shows a constructor expression as plain text. To show the parts
+layout there instead, in HTML and LaTeX, set `__notebook_parts__`:
+
+```python
+>>> @dataclasses.dataclass(repr=False)
+... class Shown(ReprMixin):
+...     __repr_spec__ = "call"
+...     __notebook_parts__ = True
+...     lo: float
+
+>>> Shown(0.5)._repr_html_()
+'Shown(lo=<span>0.5</span>)'
+
+```
+
 ## Note on axes
 
 `markup` and `sep` do not apply under `call` — they are `product`-only, and
