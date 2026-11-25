@@ -39,12 +39,15 @@ A field is left out when it has `repr=False`, or when its value *is* its default
 object and `hide_defaults` is on. This is wadler-lindig's own rule, so the parts
 layout and `wl.pformat` cannot disagree. Equality is not used: it is ambiguous for
 arrays. A field built by `default_factory` therefore always prints. A type that
-wants it hidden uses one shared default object instead.
+wants it hidden uses one shared default object instead. A field that has no
+value yet (`init=False`, not set) prints as `<uninitialised>`, as wadler-lindig
+prints it.
 
 ## Where a value spec goes
 
 A value spec reaches a field's value when the value has its own `pparts`, is a
-dataclass, or is accepted by `format(value, spec)`. Any other value prints as its
+dataclass, or is accepted by `format(value, spec)`. A `bool` or `int` is left
+alone, since `.2f` would print `True` as `1.00`. Any other value prints as its
 text. So `.2f` formats the floats in a dataclass and leaves a string field alone,
 instead of failing on it. At the top level, a non-dataclass with no `pparts` still
 raises on a value spec, as before.

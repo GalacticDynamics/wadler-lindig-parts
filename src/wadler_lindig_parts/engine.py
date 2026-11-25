@@ -67,6 +67,7 @@ __all__ = (
     "unwrap_math",
 )
 
+import contextlib
 import dataclasses
 import html as _html
 import re
@@ -462,20 +463,33 @@ def _fallback_text(obj: Any, /) -> str:
     dispatch guarding that; a hand-written ``__repr__`` has nothing, so the
     guard lives here too, and says the same thing the mixin's does.
     """
-    seen: set[int] | None = getattr(_rendering, "ids", None)
+    msg = (
+        f"{type(obj).__name__} registers no pparts, and its str/repr "
+        "renders through this engine, so rendering it would recurse "
+        "(register one with @pparts.dispatch)"
+    )
+    with _no_reentry("ids", obj, msg):
+        return str(obj)
+
+
+@contextlib.contextmanager
+def _no_reentry(slot: str, obj: Any, msg: str, /) -> Iterator[None]:
+    """Raise ``TypeError(msg)`` if this thread is already rendering ``obj``.
+
+    ``slot`` names the thread-local set of ``id``s, so separate guards do not
+    trip each other. An ``id`` is stable while the object is alive, and it is:
+    the caller's frame holds a reference.
+    """
+    seen: set[int] | None = getattr(_rendering, slot, None)
     if seen is None:
-        seen = _rendering.ids = set()
+        seen = set()
+        setattr(_rendering, slot, seen)
     key = id(obj)
     if key in seen:
-        msg = (
-            f"{type(obj).__name__} registers no pparts, and its str/repr "
-            "renders through this engine, so rendering it would recurse "
-            "(register one with @pparts.dispatch)"
-        )
         raise TypeError(msg)
     seen.add(key)
     try:
-        return str(obj)
+        yield
     finally:
         seen.discard(key)
 
@@ -494,17 +508,20 @@ def _takes_value_spec(value: Any, /) -> bool:
     return method is not function.resolve_method(Signature(object))[0]
 
 
-def _field_parts(value: Any, /, *, markup: str, **kw: Any) -> tuple[Any, ...]:
-    """One field's parts, with the value spec only where the value can take it."""
-    spec = kw.get("value_spec")
-    if spec is None or _takes_value_spec(value):
-        return pparts(value, markup=markup, **kw)
-    kw = {k: v for k, v in kw.items() if k != "value_spec"}
-    try:
-        text = format(value, spec)
-    except (TypeError, ValueError):
-        return pparts(value, markup=markup, **kw)
-    return (PPart("value", text),)
+def _field_parts(
+    value: Any, /, *, markup: str, value_spec: str | None = None, **kw: Any
+) -> tuple[Any, ...]:
+    """One field's parts, with the value spec only where the value can take it.
+
+    ``bool`` and ``int`` are left alone: ``format(True, ".2f")`` is ``1.00``,
+    which in a field layout reads as a different value.
+    """
+    if value_spec is None or _takes_value_spec(value):
+        return pparts(value, markup=markup, value_spec=value_spec, **kw)
+    if type(value) not in (bool, int):
+        with contextlib.suppress(TypeError, ValueError):
+            return (PPart("value", format(value, value_spec)),)
+    return pparts(value, markup=markup, **kw)
 
 
 def fields_to_parts(
@@ -531,15 +548,8 @@ def fields_to_parts(
     'Point(x=1.0)'
 
     """
-    seen: set[int] | None = getattr(_rendering, "fields", None)
-    if seen is None:
-        seen = _rendering.fields = set()
-    key = id(obj)
-    if key in seen:
-        msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
-        raise TypeError(msg)
-    seen.add(key)
-    try:
+    msg = f"{type(obj).__name__} contains itself, so its field layout would recurse"
+    with _no_reentry("fields", obj, msg):
         out: list[Any] = [PPart("name", f"{type(obj).__name__}(", "sep")]
         for i, (name, value) in enumerate(fields):
             if i:
@@ -548,8 +558,6 @@ def fields_to_parts(
             out.append(PGroup(name, _field_parts(value, markup=markup, **kw)))
         out.append(PPart("close", ")", "sep"))
         return tuple(out)
-    finally:
-        seen.discard(key)
 
 
 def fields_to_pdoc(
@@ -1439,6 +1447,18 @@ def pparts_to_pdoc(
     )
 
 
+class _Uninitialised:
+    """Stands in for a field that has no value yet, as wadler-lindig prints it."""
+
+    def __repr__(self) -> str:
+        return "<uninitialised>"
+
+    __str__ = __repr__
+
+
+_UNINITIALISED: Final = _Uninitialised()
+
+
 @dispatch.abstract
 def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
     """Return the ``(name, value)`` pairs a dataclass shows when printed.
@@ -1482,7 +1502,7 @@ def pfields(obj: Any, /, **kw: Any) -> tuple[tuple[str, Any], ...]:
     for field in dataclasses.fields(obj):
         if not field.repr:
             continue
-        value = getattr(obj, field.name)
+        value = getattr(obj, field.name, _UNINITIALISED)
         if hide_defaults and value is field.default:
             continue
         out.append((field.name.removeprefix(prefix), value))

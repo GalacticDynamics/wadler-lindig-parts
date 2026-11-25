@@ -266,3 +266,29 @@ def test_notebook_parts_switch_shows_markup() -> None:
     assert e._repr_latex_() == pspec(e, "latex")
     assert e._repr_latex_().startswith("$")
     assert repr(e) == "E(t=1.0 * x)"
+
+
+# ---------------------------------------------------------------------------
+# Audit fixes
+
+
+@dataclasses.dataclass(repr=False)
+class Unset(ReprMixin):
+    __repr_spec__ = "call"
+    a: int
+    b: int = dataclasses.field(init=False)
+
+
+def test_unset_field_prints_uninitialised_on_both_routes() -> None:
+    assert repr(Unset(1)) == "Unset(a=1, b=<uninitialised>)"
+    assert pspec(Unset(1), "product") == "Unset(a=1, b=<uninitialised>)"
+
+
+def test_value_spec_leaves_bool_and_int_fields_alone() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: float
+        flag: bool
+        n: int
+
+    assert pspec(A(1.234, True, 100), ".2f") == "A(x=1.23, flag=True, n=100)"
