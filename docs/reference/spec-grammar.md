@@ -90,7 +90,9 @@ ValueError: invalid format spec 'nonsense' for Term: 'nonsense' is not a valid P
 
 ```
 
-A valid spec that a value cannot take is ignored by that value.
+A valid spec that a value cannot take is ignored by that value. A payload
+formatted by `pvalue` is the exception: the default `pvalue` passes the spec to
+`format()`, so a list payload raises, as in 0.3.
 
 ## Keyword order
 
