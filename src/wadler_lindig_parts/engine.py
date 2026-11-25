@@ -70,6 +70,7 @@ __all__ = (
 import contextlib
 import dataclasses
 import html as _html
+import numbers
 import re
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
@@ -508,17 +509,26 @@ def _takes_value_spec(value: Any, /) -> bool:
     return method is not function.resolve_method(Signature(object))[0]
 
 
+def _is_fractional(value: Any, /) -> bool:
+    """Whether ``value`` is a number that is not an integer (nor a bool)."""
+    return isinstance(value, numbers.Number) and not isinstance(value, numbers.Integral)
+
+
 def _field_parts(
     value: Any, /, *, markup: str, value_spec: str | None = None, **kw: Any
 ) -> tuple[Any, ...]:
     """One field's parts, with the value spec only where the value can take it.
 
-    ``bool`` and ``int`` are left alone: ``format(True, ".2f")`` is ``1.00``,
-    which in a field layout reads as a different value.
+    A string is quoted, as in a ``repr``, so ``"a, b=c"`` cannot read as two
+    fields. Of the values with no `pparts`, only a non-integer number takes a
+    value spec: ``format`` would print ``True`` as ``1.00``, cut ``".3"`` from a
+    string, or read the spec as a date's strftime pattern.
     """
+    if isinstance(value, str):
+        return (PPart("value", repr(value)),)
     if value_spec is None or _takes_value_spec(value):
         return pparts(value, markup=markup, value_spec=value_spec, **kw)
-    if type(value) not in (bool, int):
+    if _is_fractional(value):
         with contextlib.suppress(TypeError, ValueError):
             return (PPart("value", format(value, value_spec)),)
     return pparts(value, markup=markup, **kw)
@@ -1452,8 +1462,6 @@ class _Uninitialised:
 
     def __repr__(self) -> str:
         return "<uninitialised>"
-
-    __str__ = __repr__
 
 
 _UNINITIALISED: Final = _Uninitialised()

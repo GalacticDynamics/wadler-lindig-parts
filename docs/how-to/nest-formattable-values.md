@@ -111,7 +111,7 @@ build the default layouts, so a container can add one keyword and keep them:
 >>> Tree("m", Leaf("m"))
 Tree(unit='m', leaf=Leaf())
 >>> f"{Tree('m', Leaf('s')):product}"
-'Tree(unit=m, leaf=Leaf(unit=s))'
+"Tree(unit='m', leaf=Leaf(unit='s'))"
 
 ```
 

@@ -46,10 +46,14 @@ prints it.
 ## Where a value spec goes
 
 A value spec reaches a field's value when the value has its own `pparts`, is a
-dataclass, or is accepted by `format(value, spec)`. A `bool` or `int` is left
-alone, since `.2f` would print `True` as `1.00`. Any other value prints as its
-text. So `.2f` formats the floats in a dataclass and leaves a string field alone,
-instead of failing on it. At the top level, a non-dataclass with no `pparts` still
+dataclass, or is a non-integer number that `format(value, spec)` accepts. Any
+other value prints as its text: `format` would print `True` as `1.00`, cut a
+string to the spec's precision, or read the spec as a date's strftime pattern.
+So `.2f` formats the floats in a dataclass and leaves the rest alone, instead of
+failing on them or changing them.
+
+A string field prints in quotes, as in a `repr`, so `"a, b=c"` cannot read as two
+fields. At the top level, a non-dataclass with no `pparts` still
 raises on a value spec, as before.
 
 ## Boundaries

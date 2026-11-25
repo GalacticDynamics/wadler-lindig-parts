@@ -90,12 +90,12 @@ def test_value_spec_reaches_float_fields() -> None:
 def test_nested_registered_value_gets_markup() -> None:
     assert (
         pspec(Box(Term(1.0, "x"), "a"), "html")
-        == "Box(t=<span>1.0</span> <span>x</span>, label=<span>a</span>)"
+        == "Box(t=<span>1.0</span> <span>x</span>, label=<span>&#x27;a&#x27;</span>)"
     )
 
 
 def test_nested_registered_value_gets_value_spec() -> None:
-    assert pspec(Box(Term(1.0, "x"), "a"), ".2f") == "Box(t=1.00 x, label=a)"
+    assert pspec(Box(Term(1.0, "x"), "a"), ".2f") == "Box(t=1.00 x, label='a')"
 
 
 def test_unformattable_field_falls_back_to_text_under_spec() -> None:
@@ -233,7 +233,7 @@ def _(obj: Parent, /, *, markup: str = "text", **kw: object) -> tuple:
 
 def test_parent_context_keyword_reaches_child_pfields_on_both_routes() -> None:
     assert repr(Parent("a", Child("a"))) == "Parent(u='a', c=Child())"
-    assert pspec(Parent("a", Child("a")), "product") == "Parent(u=a, c=Child())"
+    assert pspec(Parent("a", Child("a")), "product") == "Parent(u='a', c=Child())"
     assert repr(Parent("a", Child("b"))) == "Parent(u='a', c=Child(u='b'))"
 
 
@@ -241,7 +241,7 @@ def test_nested_parents_pass_their_own_context() -> None:
     # The inner Parent receives parent_u="a" and must replace it with "b".
     outer = Parent("a", Parent("b", Child("b")))  # type: ignore[arg-type]
     assert repr(outer) == "Parent(u='a', c=Parent(u='b', c=Child()))"
-    assert pspec(outer, "product") == "Parent(u=a, c=Parent(u=b, c=Child()))"
+    assert pspec(outer, "product") == "Parent(u='a', c=Parent(u='b', c=Child()))"
 
 
 # ---------------------------------------------------------------------------
@@ -292,3 +292,31 @@ def test_value_spec_leaves_bool_and_int_fields_alone() -> None:
         n: int
 
     assert pspec(A(1.234, True, 100), ".2f") == "A(x=1.23, flag=True, n=100)"
+
+
+def test_value_spec_formats_only_non_integer_numbers() -> None:
+    import datetime
+    import enum
+
+    class Color(enum.IntEnum):
+        RED = 1
+
+    @dataclasses.dataclass
+    class M:
+        x: float
+        when: datetime.date
+        name: str
+        c: Color
+
+    m = M(1.23456, datetime.date(2024, 1, 2), "galactic", Color.RED)
+    assert pspec(m, ".2f") == "M(x=1.23, when=2024-01-02, name='galactic', c=1)"
+    assert pspec(m, ".3") == "M(x=1.23, when=2024-01-02, name='galactic', c=1)"
+
+
+def test_string_fields_print_quoted() -> None:
+    @dataclasses.dataclass
+    class S:
+        s: str
+
+    assert pspec(S("a, b=c"), "product") == "S(s='a, b=c')"
+    assert pspec(S(""), "product") == "S(s='')"
