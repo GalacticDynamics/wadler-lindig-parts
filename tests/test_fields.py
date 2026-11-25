@@ -9,6 +9,7 @@ from wadler_lindig_parts import (
     fields_to_parts,
     fields_to_pdoc,
     pfields,
+    PGroup,
     PPart,
     pparts,
     pspec,
@@ -438,3 +439,42 @@ def test_a_call_mixin_with_its_own_pparts_uses_them_as_a_field() -> None:
         x: Parted
 
     assert pspec(D(Parted(1.23456)), ".2f") == "D(x=1.23)"
+
+
+class Unit:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"Unit({self.name!r})"
+
+
+@dataclasses.dataclass(repr=False)
+class Qty(ReprMixin):
+    """A container that forwards **kw to an unregistered child, per the docs."""
+
+    __repr_spec__ = "mul"
+    v: float
+    unit: Unit
+
+
+@pparts.dispatch
+def _(obj: Qty, /, *, markup: str = "text", **kw: object) -> tuple:
+    return (
+        PPart("v", str(obj.v)),
+        PPart("mul", " * ", "sep"),
+        PGroup("unit", pparts(obj.unit, markup=markup, **kw)),
+    )
+
+
+def test_only_the_field_value_counts_as_nested() -> None:
+    @dataclasses.dataclass
+    class Box:
+        q: Qty
+
+    q = Qty(1.5, Unit("km"))
+    assert pspec(q, "product") == "1.5 km"
+    assert pspec(Box(q), "product") == "Box(q=1.5 km)"

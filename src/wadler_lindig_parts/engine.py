@@ -413,7 +413,7 @@ def pparts(
     *,
     markup: str = "text",
     value_spec: str | None = None,
-    nested: bool = False,
+    _nested: object = None,
     **kw: Any,
 ) -> tuple[Any, ...]:
     """Lay out a dataclass by its fields, and fall back to `str` for the rest.
@@ -442,14 +442,8 @@ def pparts(
 
     """
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return fields_to_parts(
-            obj,
-            pfields(obj, value_spec=value_spec, **kw),
-            markup=markup,
-            value_spec=value_spec,
-            **kw,
-        )
-    if nested:
+        return _dataclass_parts(obj, markup=markup, value_spec=value_spec, **kw)
+    if _nested is obj:
         return _nested_value_parts(obj, markup=markup, value_spec=value_spec, **kw)
     if value_spec is not None:
         msg = (
@@ -519,6 +513,19 @@ def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
     return doc_part("value", doc)
 
 
+def _dataclass_parts(
+    obj: Any, /, *, markup: str, value_spec: str | None, **kw: Any
+) -> tuple[Any, ...]:
+    """The field layout of a dataclass instance, over its `pfields`."""
+    return fields_to_parts(
+        obj,
+        pfields(obj, value_spec=value_spec, **kw),
+        markup=markup,
+        value_spec=value_spec,
+        **kw,
+    )
+
+
 def _nested_value_parts(
     value: Any, /, *, markup: str, value_spec: str | None = None, **kw: Any
 ) -> tuple[Any, ...]:
@@ -577,9 +584,10 @@ def fields_to_parts(
             if i:
                 out.append(PPart("comma", ", ", "sep"))
             out.append(PPart("key", f"{name}=", "sep"))
-            # ``nested`` tells the fallback this value is a field; plum's
-            # dispatch decides whether it has parts of its own.
-            parts = pparts(value, markup=markup, **{**kw, "nested": True})
+            # ``_nested`` names the field value, so the fallbacks treat it, and
+            # not a grandchild a registered method forwards ``**kw`` to, as a
+            # field. plum's dispatch decides whether it has parts of its own.
+            parts = pparts(value, markup=markup, **{**kw, "_nested": value})
             out.append(PGroup(name, parts))
         out.append(PPart("close", ")", "sep"))
         return tuple(out)
@@ -1679,7 +1687,7 @@ def pparts(
     *,
     markup: str = "text",
     value_spec: str | None = None,
-    nested: bool = False,
+    _nested: object = None,
     **kw: Any,
 ) -> tuple[Any, ...]:
     """Refuse a `ReprMixin` type that registered no `pparts` of its own.
@@ -1692,15 +1700,9 @@ def pparts(
     ``call`` type with a ``__pdoc__`` of its own renders as its ``repr``.
     """
     if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
-        return fields_to_parts(
-            obj,
-            pfields(obj, value_spec=value_spec, **kw),
-            markup=markup,
-            value_spec=value_spec,
-            **kw,
-        )
+        return _dataclass_parts(obj, markup=markup, value_spec=value_spec, **kw)
     if _repr_is_constructor(obj):
-        if value_spec is not None and not nested:
+        if value_spec is not None and _nested is not obj:
             msg = (
                 f"{type(obj).__name__} does not support a value format spec: "
                 "its repr is a constructor expression with no parts to format"

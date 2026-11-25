@@ -59,10 +59,12 @@ A value with no parts of its own prints as wadler-lindig lays it out: its
 arrays summarised as `wl.pformat` does under the same `value` setting. So a
 string prints in quotes and `"a, b=c"` cannot read as two fields. A `call` mixin
 type that is not a dataclass nests as its own `__pdoc__`, unless it registers
-`pparts`. Each field goes through ordinary `pparts` dispatch with a `nested`
-keyword, so plum decides whether a value has parts of its own, a registration on
-a parametric type such as `list[X]` is found, and the lookup is plum's cached
-one. At the top level, a non-dataclass with no `pparts` still
+`pparts`. Each field goes through ordinary `pparts` dispatch with a private
+`_nested` keyword naming the field value, so plum decides whether a value has
+parts of its own, a registration on a parametric type such as `list[X]` is
+found, and the lookup is plum's cached one. A grandchild that a registered
+method forwards `**kw` to is not the named value, so it keeps the top-level
+behaviour. At the top level, a non-dataclass with no `pparts` still
 raises on a value spec, as before.
 
 ## Boundaries
