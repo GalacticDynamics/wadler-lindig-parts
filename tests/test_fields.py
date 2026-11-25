@@ -337,3 +337,76 @@ def test_a_spec_the_child_accepts_is_not_rejected_by_the_parent() -> None:
         t: Term
 
     assert pspec(W(Term(datetime.date(2024, 1, 2), "x")), "%Y") == "W(t=2024 x)"
+
+
+class Wide(ReprMixin):
+    """A call-spec non-dataclass whose own __pdoc__ is a breakable document."""
+
+    __repr_spec__ = "call"
+
+    def __init__(self, *items: str) -> None:
+        self.items = items
+
+    def __pdoc__(self, **kw: object) -> wl.AbstractDoc:
+        return wl.bracketed(
+            begin=wl.TextDoc("Wide("),
+            docs=[wl.pdoc(x) for x in self.items],
+            sep=wl.comma,
+            end=wl.TextDoc(")"),
+            indent=2,
+        )
+
+
+def test_nested_call_mixin_follows_the_parent_layout() -> None:
+    @dataclasses.dataclass
+    class Box:
+        name: str
+        c: object
+
+    w = Wide(*(["x" * 30] * 4))
+    flat = f"Box(name='bx', c=Wide({', '.join([repr('x' * 30)] * 4)}))"
+    assert pspec(Box("bx", w), "product-width=200") == flat
+
+
+def test_call_mixin_rejects_a_value_spec_at_top_level() -> None:
+    with pytest.raises(TypeError, match="value format spec"):
+        pspec(Wide("a"), ".2f")
+
+
+class Marker:
+    pass
+
+
+@pparts.dispatch
+def _(obj: list[Marker], /, *, markup: str = "text", **kw: object) -> tuple:
+    return (PPart("markers", f"{len(obj)} markers"),)
+
+
+def test_instance_dispatch_reaches_parametric_registrations() -> None:
+    @dataclasses.dataclass
+    class D:
+        a: list
+
+    assert pspec(D([Marker(), Marker()]), "product") == "D(a=2 markers)"
+
+
+def test_a_number_that_rejects_the_spec_falls_back() -> None:
+    import fractions
+
+    @dataclasses.dataclass
+    class F:
+        q: fractions.Fraction
+        x: float
+
+    assert pspec(F(fractions.Fraction(1, 3), 1.23456), ".3") == (
+        "F(q=Fraction(1, 3), x=1.23)"
+    )
+
+
+def test_nested_values_keep_wadler_lindig_layout() -> None:
+    @dataclasses.dataclass
+    class Holder:
+        xs: list
+
+    out = pspec(Holder(["y" * 30] * 5), "product-width=40")
+    assert "\n" in out

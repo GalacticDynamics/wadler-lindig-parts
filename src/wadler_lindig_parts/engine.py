@@ -69,7 +69,6 @@ __all__ = (
 
 import contextlib
 import dataclasses
-import functools
 import html as _html
 import numbers
 import re
@@ -79,7 +78,7 @@ from types import MappingProxyType
 from typing import Any, ClassVar, Final, NamedTuple
 
 import wadler_lindig as wl
-from plum import Dispatcher, Signature
+from plum import Dispatcher
 
 
 #: A dispatcher private to this module.
@@ -500,22 +499,37 @@ def _no_reentry(obj: Any, msg: str, /) -> Iterator[None]:
 def _has_own_parts(value: Any, /) -> bool:
     """Whether ``value`` renders through parts of its own.
 
-    True for a dataclass instance (the field layout) and for any type with a
-    `pparts` method more specific than the `Any` fallback.
+    True for a dataclass instance (the field layout) and for a value whose
+    `pparts` dispatch, on the instance as plum dispatches it, finds a method
+    more specific than the `Any` fallback. A ``call`` mixin type that is a
+    constructor expression but not a dataclass has no parts: it nests as its
+    ``__pdoc__``.
     """
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return True
+    if isinstance(value, ReprMixin) and _repr_is_constructor(value):
+        return False
     # `pparts` is a plum Function at runtime; its static type is the function.
     function: Any = pparts
-    return _resolves_past_any(type(value), len(function.methods))
+    return (
+        function.resolve_method((value,))[0]
+        is not function.resolve_method((object(),))[0]
+    )
 
 
-@functools.lru_cache(maxsize=1024)
-def _resolves_past_any(t: type, n_methods: int, /) -> bool:  # noqa: ARG001
-    """`_has_own_parts` for a type, cached until a `pparts` method is added."""
-    function: Any = pparts
-    method, _ = function.resolve_method(Signature(t))
-    return method is not function.resolve_method(Signature(object))[0]
+def _pdoc_part(value: Any, /, *, markup: str, **kw: Any) -> PPart:
+    """``value`` as wadler-lindig lays it out, escaped for ``markup``.
+
+    The document keeps its own line breaks under the parent's width and
+    indentation. A markup with an escape gets the flat text escaped, as
+    `pvalue` does: HTML and LaTeX are laid out flat anyway.
+    """
+    short_arrays = kw.pop("short_arrays", "compact")
+    doc = wl.pdoc(value, short_arrays=short_arrays, **kw)
+    escape = markup_table(markup)["escape"]
+    if escape is not None:
+        doc = wl.TextDoc(escape(doc_to_str(doc, FLAT)))
+    return doc_part("value", doc)
 
 
 def _field_parts(
@@ -523,14 +537,14 @@ def _field_parts(
 ) -> tuple[Any, ...]:
     """One field's parts, with the value spec only where the value can take it.
 
-    A value with no parts of its own prints as its `pvalue`, which is its
-    ``repr`` escaped for ``markup``, so ``"a, b=c"`` cannot read as two fields.
-    Of those values only a non-integer number takes a value spec: ``format``
-    would print ``True`` as ``1.00``, cut ``".3"`` from a string, or read the
-    spec as a date's strftime pattern. A float rejects a mistyped spec.
+    A value with parts of its own renders through them, spec included. A
+    non-integer number takes a value spec through ``format``; one that rejects
+    a spec a float accepts (a `fractions.Fraction` under ``.3``) falls back,
+    and a spec no float accepts raises, so a typo is not swallowed. Anything
+    else renders as wadler-lindig lays it out (its ``repr``, so a string is
+    quoted): ``format`` would print ``True`` as ``1.00``, cut ``".3"`` from a
+    string, or read the spec as a date's strftime pattern.
     """
-    from .generic import pvalue  # generic imports this module
-
     if _has_own_parts(value):
         return pparts(value, markup=markup, value_spec=value_spec, **kw)
     # issubclass on the type, so pyright does not narrow ``value`` for `pparts`.
@@ -540,9 +554,11 @@ def _field_parts(
         and issubclass(t, numbers.Number)
         and not issubclass(t, numbers.Integral)
     ):
-        with contextlib.suppress(TypeError):
+        try:
             return (PPart("value", format(value, value_spec)),)
-    return (doc_part("value", pvalue(value, markup=markup, **kw)),)
+        except (TypeError, ValueError):
+            format(0.0, value_spec)  # raises if no float accepts it either
+    return (_pdoc_part(value, markup=markup, **kw),)
 
 
 def fields_to_parts(
@@ -1626,18 +1642,8 @@ class ReprMixin:
         return parts_to_markup(parts, markup=markup, sep=sep)
 
     def _notebook_shows_repr(self) -> bool:
-        """Whether a notebook shows ``repr`` instead of markup.
-
-        It does when ``repr`` is a constructor expression and the class did not
-        set ``__notebook_parts__``. ``repr`` is a constructor expression under a
-        ``call`` spec, when the constructor form comes from the dataclass field
-        layout or from a ``__pdoc__`` of the type's own. A ``call`` type with
-        neither still renders its fragments.
-        """
-        if self.__notebook_parts__ or self._repr_spec_parsed["layout"] != "call":
-            return False
-        own_pdoc = type(self).__pdoc__ is not ReprMixin.__pdoc__
-        return own_pdoc or dataclasses.is_dataclass(self)
+        """Whether a notebook shows ``repr`` instead of markup."""
+        return not self.__notebook_parts__ and _repr_is_constructor(self)
 
     def _repr_html_(self) -> str | None:
         # A constructor expression has no markup form; `None` tells IPython to
@@ -1666,6 +1672,19 @@ class ReprMixin:
         return pparts_to_pdoc(self, indent=indent, sep=sep, markup=markup, **layout)
 
 
+def _repr_is_constructor(obj: ReprMixin, /) -> bool:
+    """Whether ``obj``'s ``repr`` is a constructor expression, not fragments.
+
+    It is under a ``call`` spec, when the constructor form comes from the
+    dataclass field layout or from a ``__pdoc__`` of the type's own. A ``call``
+    type with neither still renders its fragments.
+    """
+    if obj._repr_spec_parsed["layout"] != "call":
+        return False
+    own_pdoc = type(obj).__pdoc__ is not ReprMixin.__pdoc__
+    return own_pdoc or dataclasses.is_dataclass(obj)
+
+
 @dispatch  # type: ignore[no-redef]
 def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, ...]:
     """Refuse a `ReprMixin` type that registered no `pparts` of its own.
@@ -1677,11 +1696,17 @@ def pparts(obj: ReprMixin, /, *, markup: str = "text", **kw: Any) -> tuple[Any, 
     spec still raises, so a missing registration cannot render plausibly. A
     ``call`` type with a ``__pdoc__`` of its own renders as its ``repr``.
     """
-    if obj._repr_spec_parsed["layout"] == "call":
-        if dataclasses.is_dataclass(obj):
-            return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
-        if type(obj).__pdoc__ is not ReprMixin.__pdoc__:
-            return (PPart("value", repr(obj)),)
+    if obj._repr_spec_parsed["layout"] == "call" and dataclasses.is_dataclass(obj):
+        return fields_to_parts(obj, pfields(obj, **kw), markup=markup, **kw)
+    if _repr_is_constructor(obj):
+        if kw.get("value_spec") is not None:
+            msg = (
+                f"{type(obj).__name__} does not support a value format spec: "
+                "its repr is a constructor expression with no parts to format"
+            )
+            raise TypeError(msg)
+        kw.pop("value_spec", None)
+        return (_pdoc_part(obj, markup=markup, **kw),)
     msg = (
         f"{type(obj).__name__} subclasses ReprMixin but registers no pparts "
         "(register one with @pparts.dispatch)"
